@@ -71,12 +71,9 @@ which indent is greater than tag's indent are appended to the tag. When indent d
 will be translated into the following XML tree:
 
     <tag>Hello
-    <othertag>
-    I'm indentml
-    </othertag>
-    How are you?
-    </tag>
-    I'm fine
+    <othertag>I'm indentml
+    </othertag>How are you?
+    </tag>I'm fine
 
 The rest of a line where block tag begins will be attached to that tag either, but it is handled a bit differently
 if it contains other valid block tags or a *separator character*. Every block tag begins new line.
@@ -96,15 +93,8 @@ Is equivalent to
 
 And renders to the following XML:
 
-    <image>
-    <src>
-    http://example.com
-    </src>
-    <width>
-    100%
-    </width>
-    Some image
-    </image>
+    <image><src>http://example.com </src><width>100%
+    </width>Some image</image>
 
 If *separator character* presented, the line is splitted by this character and every part is attached to its own `_item` tag. For example:
 
