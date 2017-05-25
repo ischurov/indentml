@@ -1,7 +1,13 @@
 # indentml
 ## General-purpose indent-based markup language
 
-**indentml** (previously known as MLQQ) is a simple general-purpose indent-based markup language designed to represent tree-like structures in human-readable way. It is similar to *YAML* but simpler.
+**indentml** (previously known as *MLQQ*) is a simple general-purpose indent-based markup language designed to represent tree-like structures in human-readable way. It is similar to *YAML* but simpler.
+
+### Install
+
+    pip install indentml
+   
+Currently only Python 3 supported.
 
 ### Code samples
 

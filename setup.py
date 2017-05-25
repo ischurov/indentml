@@ -28,7 +28,7 @@ setup(
     version='0.1.0',
 
     description=('indentml is a simple general-purpose indent-based language'
-                'suitable to describe tree-like structures'),
+                ' suitable to describe tree-like structures'),
     long_description=long_description,
 
     # The project's main homepage.
