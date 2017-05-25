@@ -16,24 +16,23 @@ here = path.abspath(path.dirname(__file__))
 # Get the long description from the README file
 # with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 #     long_description = f.read()
-long_description = """**qqmbr** is a documentation system intended to be extremely simple and extremely extensible. 
-It was written to allow writing rich content that can be compiled into different formats.
-One source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other.
+long_description = r"""**indentml** is a simple general-purpose indent-based
+language suitable to describe tree-like structures.
 """
 setup(
-    name='qqmbr',
+    name='indentml',
 
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
     version='0.1.0',
 
-    description=('qqmbr is a documentation system based on .qq '
-                 'indent-based file format'),
+    description=('indentml is a simple general-purpose indent-based language'
+                'suitable to describe tree-like structures'),
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/ischurov/qqmbr',
+    url='https://github.com/ischurov/indentml',
 
     # Author details
     author='Ilya V. Schurov',
@@ -67,12 +66,11 @@ setup(
     ],
 
     # What does your project relate to?
-    keywords='qqmbr markup',
+    keywords='indent-based, markup',
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
-    packages=find_packages(exclude=['trash', 'docs', 'test', 'third-party',
-        'qqbook']),
+    packages=find_packages(exclude=['test']),
 
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
@@ -82,9 +80,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['sortedcontainers', 'yattag', 'mako', 
-            'fuzzywuzzy', 'matplotlib', 'flask', 'beautifulsoup4',
-                      'frozen-flask', 'python-Levenshtein'],
+    install_requires=['sortedcontainers'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
@@ -111,9 +107,9 @@ setup(
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
-    entry_points={
-        'console_scripts': [
-            'qqmathbook=qqmbr.qqmathbook:main',
-        ],
-    },
+    # entry_points={
+    #     'console_scripts': [
+    #         'qqmathbook=qqmbr.qqmathbook:main',
+    #     ],
+    # },
 )

@@ -1,4 +1,4 @@
-from qqmbr.ml import QqTag
+from indentml.parser import QqTag
 import inspect
 import re
 

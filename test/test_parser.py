@@ -6,9 +6,9 @@ import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                '..', 'qqmbr'))
+                                '..', 'indentml'))
 
-from ml import QqTag, QqParser
+from parser import QqTag, QqParser
 # from qqmbr.indexedlist import IndexedList
 
 import unittest

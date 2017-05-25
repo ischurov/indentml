@@ -2,7 +2,7 @@
 # Available under MIT license (see LICENSE file in the root folder)
 
 from collections import Sequence, MutableSequence, namedtuple
-from qqmbr.indexedlist import IndexedList
+from indentml.indexedlist import IndexedList
 import re
 import os
 

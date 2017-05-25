@@ -1,95 +1,34 @@
-# qqmbr
-## Fresh documentation system
+# indentml
+## General-purpose indent-based markup language
 
-**qqmbr** is a documentation system intended to be extremely simple and extremely extensible. 
-It was written to allow writing rich content that can be compiled into different formats.
-One source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other. Look below to see it in action.
+**indentml** (previously known as MLQQ) is a simple general-purpose indent-based markup language designed to represent tree-like structures in human-readable way. It is similar to *YAML* but simpler.
 
-### Highlights
-**qqmbr** is based on **qqDoc** markup. It has the following features:
+### Code samples
 
-- Clean syntax. It's a mixture of Python-style indent-based blocks and LaTeX-style commands beginning with backslash. 
-See *complete* [qqDoc syntax description](#markup) below for details.
-- Extensibility. Tags can be anything. LaTeX-style environments like *Theorem 1* or *Lemma 2* or *Definition 3*.
-Figures with captions. Some complicated data that can be used to render something interactive. Everything is a tag.
-- Simple parsing. The source is parsed into a kind of [s-expression](https://en.wikipedia.org/wiki/S-expression) 
-which can be transformed into any other format.
+    \topic
+        \id dicts-objects
+        \heading \lang en
+            Dicts / objects
+        \description \lang en
+            The standard structure to store elements accessible by arbitrary keys
+            (mapping) in Python is called a dict (dictionary) and in JavaScript
+            — object.
+        \compare
+            \id dict-object-creation
+            \what \lang en
+                Creation of dictionary / object
+            \python
+                my_dict = {'a': 10, 'b': 20}
+                my_dict['a']
+                my_dict.a # error
+            \js
+                var my_obj = {a: 10, b: 20};
+                my_obj['a']
+                my_obj.a
+                \comment \lang en
+                    You can access elements of an object either with square brackets
+                    or with dot-notation.
 
-### View in action
-You can look at my Lecture Notes on ODE sources (see e.g. [this qqDoc source](https://github.com/ischurov/odebook/blob/master/chapter03.qq) and 
-[its HTML render](http://math-info.hse.ru/f/2015-16/nes-ode/chapter03.html), in Russian) or at the [code sample](#code-sample) below.
-
-### Inspiration
-**qqmbr**, **qqDoc** and **MLQQ** were inspired by various projects and conceptions:
-
-- [TeX](https://tug.org/) and [LaTeX](https://www.latex-project.org/) for math and backslashes.
-- [Python](https://www.python.org/) for the importance of indents (and **qqmbr** is written in Python!);
-- [YAML](http://www.yaml.org/) for indent-based markup language;
-- [DocOnce](https://github.com/hplgit/doconce) for *one source to any media* approach and some ideas on realization;
-- [S-expressions](https://en.wikipedia.org/wiki/S-expression) for simplicity (why they have attributes in XML?).
-
-### Current status
-Currently, we have full-featured **MLQQ** parser and basic *qqHTML* formatter. Some highlights:
-
-- snippets and glossary (like [here](http://math-info.hse.ru/odebook/._thebook002.html) (hover on «задача Коши» link).
-- math environments: `equation`, `align`.
-- quizzes, like in DocOnce (see e.g. [here](http://math-info.hse.ru/odebook/._thebook001.html), look for «Контрольный вопрос»);
-
-The following features are on the to-do list:
-
-- setuptools install and PyPI distribution.
-- *qqLaTeX* formatter.
-- more features in *qqHTML*:
-    - more math environments (`gather`, `multline` and so on);
-    - admonitions (boxes for warning, notice, question, etc.), like in DocOnce;
-    - many others.
-
-You are welcome to participate with pull requests and issue-reporting.
-
-### Code sample
-
-This is an example of **qqDoc** markup (subset of **MLQQ** markup).
-
-    \h1 Intro to qqmbr
-    
-    \## Fresh documentation system
-    
-    **qqmbr** is a documentation system intended to be extremely simple and extremely extensible. 
-    It was written to allow writing rich content that can be compiled into different formats.
-    One source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other. Look below to see it in action.
-    
-    \### This is nice level-3 header
-    
-    Some paragraph text. See also \ref{sec:another} (reference to different header).
-    
-    There are LaTeX formulas here:
-    
-    \eq
-        x^2 + y^2 = z^2
-    
-    `\eq` is a qqtag. It is better than tag, because it is auto-closing (look at the indent, like Python).
-    
-    Here is formula with the label:
-    
-    \equation \label eq:Fermat
-        x^n + y^n = z^n, \quad n>2
-        
-    Several formulas with labels:
-    
-    \gather
-        \- \label eq:2x2
-            2\times 2 = 4
-        \- \label eq:3x3
-            3\times 3 = 9
-    
-    We can reference formula \eqref{eq:Fermat} and \eqref{eq:2x2} just like we referenced header before.
-    
-    \h3 Another level-3 header \label sec:another
-    
-    Here is the header we referenced.
-    
-    \h3 More interesting content
-    
     \figure
         \source http://example.com/somefig.png
         \caption Some figure
@@ -106,24 +45,16 @@ This is an example of **qqDoc** markup (subset of **MLQQ** markup).
                 \comment And so do I!
 
 
-### Markup
-**MLQQ** is a general-purpose markup (or *metalanguage*, like XML), while **qqDoc** is a subset of **MLQQ** markup 
-(or **MLQQ**-based markup language) used to produce documents in HTML and LaTeX with **qqmbr**.
-
-Internal representation of **MLQQ** is an [s-expression](https://en.wikipedia.org/wiki/S-expression)-like tree structure. 
-It can be also represented as attribute-free XML.
-
-The following rules describe complete **MLQQ** syntax:
-
+### Syntax
 #### Special characters
-The following characters have special meaning in **MLQQ**:
+The following characters have special meaning in **indetml**:
 
 1. **Tag beginning character.** This character is used to mark the beginning of any tag. By default, it is backslash `\` 
 (like in LaTeX), but can be configured to any other character. If you need to enter this character literally, you have 
 to escape it with the same character (like `\\`). You can also escape other special characters listed below with *tag beginning character*.
 2. **Separator character** is used to separate the rest of line which contains *block tag* (see below). By default it is pipe `|`.
 3. Opening and closing brackets: `{`, `}`, and `[`, `]`, used to indicate the content that belongs to *inline tags*, see below.
-4. Tabs are forbidden at the beginning of the line in **MLQQ** (just like in YAML).
+4. Tabs are forbidden at the beginning of the line in **indentml** (just like in YAML).
 
 #### Block tags
 Block tags are typed at the beginning of the line, after several spaces that mark *indent* of a tag.  
@@ -133,7 +64,7 @@ which indent is greater than tag's indent are appended to the tag. When indent d
     \tag
         Hello
         \othertag
-            I'm qqDoc
+            I'm indentml
         How are you?
     I'm fine
     
@@ -141,7 +72,7 @@ will be translated into the following XML tree:
 
     <tag>Hello
     <othertag>
-    I'm qqDoc
+    I'm indentml
     </othertag>
     How are you?
     </tag>
