@@ -99,3 +99,8 @@ ENV/
 
 # mypy
 .mypy_cache/
+#Ipython Notebook
+.ipynb_checkpoints
+
+# IDEA
+.idea/
