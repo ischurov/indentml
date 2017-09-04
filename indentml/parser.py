@@ -1,4 +1,4 @@
-# (c) Ilya V. Schurov, 2016
+# (c) Ilya V. Schurov, 2016 — 2017
 # Available under MIT license (see LICENSE file in the root folder)
 
 from collections import Sequence, MutableSequence, namedtuple
