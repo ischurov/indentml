@@ -360,8 +360,15 @@ class QqTag(MutableSequence):
                 newtree.append_child(child)
             else: # child is QqTag
                 if child.name == parser.include:
+                    include_path = child.value
+                    # FROM: https://www.guyrutenberg.com/2013/12/06/
+                    # preventing-directory-traversal-in-python/
+                    include_path = os.path.normpath('/' +
+                                               include_path).lstrip('/')
+                    # END FROM
+
                     include_parsed = parser.parse_file(
-                        os.path.join(includedir, child.value))
+                        os.path.join(includedir, include_path))
                     if follow:
                         include_parsed = (
                             include_parsed.process_include_tags(
@@ -588,28 +595,18 @@ class QqParser(object):
 
         pos = start.copy()
         chunk = []
-        print("start =", start)
-        print("stop =", stop)
-        print("parsing fragment:")
-        print(start.lines_before(stop))
-        print("current indent =", current_indent)
-        print("merge_lines = ", merge_lines)
 
         while pos < stop:
             # loop invariant: everything before pos is appended to tags
             # or chunk
 
             line = pos.clipped_line(stop)
-            print("current_indent =", current_indent)
-            print("pos =", pos)
-            print("Processing line", repr(line))
             if not line.strip():
                 if line and line[-1] == '\n':
                     chunk.append("\n")
                 pos.nextline()
                 continue
             if pos.offset == 0:
-                print("dedenting by", current_indent)
                 line = dedent(line, current_indent)
                 pos.offset = current_indent
                 blockmode = True
@@ -771,7 +768,6 @@ class QqParser(object):
                           'stop': end.copy()})
             pos = end
             pos.nextchar()
-        print(items)
         return items
 
     def match_bracket(self, start: Position, stop: Position) -> Position:
@@ -828,8 +824,6 @@ class QqParser(object):
 
         pos = start.copy()
         ret = start.copy()
-        print("scanning after attribute tag, beginning with ", start)
-        print("stop: ", stop)
 
         while pos < stop:
             tag_position, tag, type, after = self.locate_tag(pos, stop)
