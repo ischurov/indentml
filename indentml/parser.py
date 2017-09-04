@@ -4,8 +4,7 @@
 from collections import Sequence, MutableSequence, namedtuple
 from indentml.indexedlist import IndexedList
 import re
-import os
-
+from functools import total_ordering
 
 class QqError(Exception):
     pass
@@ -260,61 +259,6 @@ class QqTag(MutableSequence):
         for child in children:
             self.append_child(child)
 
-    def process_separator(self, separator='separator'):
-        """
-        If tag contains separator tag, tag's children will be reformatted
-        in the following way:
-        \tag
-            something
-            \separator
-            something
-            \subtag
-                some content
-            \separator
-            other thing
-        will be changed to
-        \tag
-            \_item
-                something
-            \_item
-                something
-                \subtag
-                    some content
-            \_item
-                other thing
-        If tag does not contain separator tag, exception will be raised
-        :param separator: name of separator tag (default: 'separator')
-        :return: self
-        """
-        sep = QqTag(separator)
-        if sep not in self:
-            raise QqError("Tag {} does not contains separator {}".format(
-                self, separator
-            ))
-
-        sep = QqTag(separator)
-        children_list = list(self)
-        # copy list of childrens
-
-        self._children.clear()
-        item_tag = QqTag("_item")
-        for child in children_list:
-            if child == sep:
-                self.append_child(item_tag)
-                item_tag = QqTag("_item")
-            else:
-                item_tag.append_child(child)
-        self.append_child(item_tag)
-        return self
-
-    def process_separator_recursively(self, separator='separator'):
-        for child in self:
-            if isinstance(child, str):
-                continue
-            if QqTag(separator) in child:
-                child.process_separator(separator=separator)
-            child.process_separator_recursively(separator=separator)
-
     def children_values(self, strings='raise', not_simple='raise'):
         """
         Make a list of .value applied to all children instances
@@ -360,6 +304,7 @@ class QqTag(MutableSequence):
                 # if not_simple == 'skip': pass
         return values
 
+    # TODO: probably, remove
     @property
     def itemized(self) -> bool:
         """
@@ -377,73 +322,143 @@ class QqTag(MutableSequence):
             return self
         return QqTag(self.name, [QqTag("_item", self, adopt=True)])
 
-class StackElement(object):
-    def __init__(self, tag, indent=0, bracket=None, bracket_counter=0):
-        self.tag = tag
-        self.indent = indent
-        self.bracket = bracket
-        self.bracket_counter = bracket_counter
+def dedent(line, indent):
+    if line[:indent] == " " * indent:
+        return line[indent:]
+    raise QqError("Can't dedent line {} by {}".format(repr(line), indent))
 
-    def __str__(self):
-        return "<%s, %s, %s, %s>" % (self.tag.name, str(self.indent),
-                                     self.bracket,
-                                     str(self.bracket_counter))
-
-    def __repr__(self):
-        return "StackElement(%s, %s, %s, %s)" % (repr(self.tag),
-                                                 repr(self.indent),
-                                                 repr(self.bracket),
-                                                 repr(self.bracket_counter))
-
-
-class QqParser(object):
-    """
-    General MLQQ parser.
-    """
-    def __init__(self, tb_char='\\', sep_char="|",
-                 allowed_tags=None, tag_regex=r"([^\s\{\[\|\&]+)", allowed_inline_tags=None, alias2tag=None,
-                 separator='separator', include='include', include_dir = ''):
-        self.tb_char = tb_char
-        self.command_regex = re.escape(self.tb_char)
-        if allowed_tags is None:
-            self.allowed_tags = set([])
-        else:
-            self.allowed_tags = allowed_tags
-        self.tag_regex = tag_regex
-        if allowed_inline_tags is None:
-            self.allowed_inline_tags = self.allowed_tags
-        else:
-            self.allowed_inline_tags = allowed_inline_tags
-        self._last_tag = None
-        self._stack = None
-        if alias2tag is None:
-            self.alias2tag = {}
-        else:
-            self.alias2tag = alias2tag
-        self.escape_stub = '&_ESCAPE_Thohhe1eieMam6Yo_'
-        self.sep_char = sep_char
-        self.sep_regex = re.escape(self.sep_char)
-        self.separator = separator
-        self.separator_tag = self.tb_char + separator
-        self.allowed_tags.add(separator)
-        self.include = include
-        self.allowed_tags.add(include)
-        self.include_dir = include_dir
-
-    def pop_stack(self):
-        self._last_tag = self._stack.pop()
-        return self._last_tag
-
-    def str_stack(self):
-        return ", ".join(str(s) for s in self._stack)
-
-    def get_indent(self, s) -> int:
+def get_indent(s, empty_to_none=False):
+        if not s.strip() and empty_to_none:
+            return None
         m = re.match(r'\s*', s)
         beginning = m.group(0)
         if '\t' in beginning:
             raise QqError("No tabs allowed in QqDoc at the beginning of line!")
         m = re.match(r' *', s)
         return len(m.group(0))
+
+@total_ordering
+class Position(object):
+    def __init__(self, line, offset, lines):
+        self.line = line
+        self.offset = offset
+        self.lines = lines
+        if line is None:
+            self.line = len(lines)
+
+    def __lt__(self, other):
+        return (self.line, self.offset) < (other.line, other.offset)
+
+    def __eq__(self, other):
+        return (self.line, self.offset) == (other.line, other.offset)
+
+    def nextchar(self):
+        self.offset += 1
+        if self.offset >= len(self.lines[self.line]):
+            self.nextline()
+        return self
+
+    def nextline(self):
+        self.offset = 0
+        self.line += 1
+        return self
+
+    def copy(self):
+        return Position(line=self.line,
+                        offset=self.offset,
+                        lines=self.lines)
+
+    def __str__(self):
+        return "Position: line_number: {}, offset: {}, line: {}".format(
+            self.line, self.offset, get(self.lines, self.line))
+
+    def __repr__(self):
+        return "Position(line={}, offset={})".format(
+            self.line, self.offset)
+
+    def lines_before(self, stop):
+        pos = self.copy()
+        out = []
+        while pos < stop:
+            out.append(pos.clipped_line(stop))
+            pos.nextline()
+        return out
+
+
+    def clipped_line(self, stop):
+        """
+        Returns line clipped before stop
+
+        :param line_idx:
+        :param stop:
+        :return:
+        """
+
+        if stop.line > self.line:
+            inline_stop_offset = None
+        else:
+            inline_stop_offset = stop.offset
+        return self.getline[self.offset:inline_stop_offset]
+
+    @property
+    def getline(self):
+        return self.lines[self.line]
+
+    @property
+    def getchar(self):
+        return self.getline[self.offset]
+
+    def get_end_of_line(self):
+        return Position(self.line, len(self.getline), self.lines)
+
+def get(s, i, default=None):
+    try:
+        return s[i]
+    except IndexError:
+        return default
+
+
+def first_nonspace_idx(line, start=0, stop=None):
+    if stop is None:
+        stop = len(line)
+    m = re.match(r"\s*", line[start:stop])
+    return start + m.end(0)
+
+class QqParser(object):
+    """
+    General indentml parser.
+    """
+    def __init__(self, tb_char='\\',
+                 allowed_tags=None,
+                 allowed_inline_tags=None, alias2tag=None,
+                 include='_include'):
+        self.tb_char = tb_char
+        self.command_regex = re.escape(self.tb_char)
+        if allowed_tags is None:
+            self.allowed_tags = set([])
+        else:
+            self.allowed_tags = allowed_tags
+        self.tag_regex = r"([^\s\{\[\&" + self.command_regex + "]+)"
+        if allowed_inline_tags is None:
+            self.allowed_inline_tags = self.allowed_tags
+        else:
+            self.allowed_inline_tags = allowed_inline_tags
+        if alias2tag is None:
+            self.alias2tag = {}
+        else:
+            self.alias2tag = alias2tag
+        self.escape_stub = '&_ESCAPE_Thohhe1eieMam6Yo_'
+        self.include = include
+        self.allowed_tags.add(include)
+        self._lines = None
+        self._indents = None
+        self.blocktag_rc = re.compile(self.command_regex +
+                              self.tag_regex +
+                              r"(?= |{}|$)".format(self.command_regex))
+        self.anytag_rc = re.compile(self.command_regex +
+                                    self.tag_regex +
+                                    r"(?= |{}|{{|\[|$)".format(
+                                        self.command_regex))
 
     def escape_line(self, s):
         """
@@ -452,19 +467,22 @@ class QqParser(object):
         :return: escaped line
         """
         s = s.replace(self.tb_char * 2, self.escape_stub + 'COMMAND_&')
-        s = s.replace(self.tb_char + self.sep_char, self.escape_stub + 'SEP_&')
         s = s.replace(self.tb_char + " ", self.escape_stub + 'SPACE_&')
-        s = s.replace(self.tb_char + "{", self.escape_stub + 'OPEN_CURVE_&')
-        s = s.replace(self.tb_char + "[", self.escape_stub + 'OPEN_SQUARE_&')
-        s = s.replace(self.tb_char + "}", self.escape_stub + 'CLOSE_CURVE_&')
-        s = s.replace(self.tb_char + "]", self.escape_stub + 'CLOSE_SQUARE_&')
-
+        s = s.replace(self.tb_char + "{",
+                      self.escape_stub + 'OPEN_CURVE_&')
+        s = s.replace(self.tb_char + "[",
+                      self.escape_stub + 'OPEN_SQUARE_&')
+        s = s.replace(self.tb_char + "}",
+                      self.escape_stub + 'CLOSE_CURVE_&')
+        s = s.replace(self.tb_char + "]",
+                      self.escape_stub + 'CLOSE_SQUARE_&')
 
         return s
 
     def unescape_line(self, s):
         """
-        Replaces special stub's inserted by ``escape_line()`` with '\' and ' '
+        Replaces special stub's inserted by ``escape_line()``
+        with '\' and ' '
 
         Note: this is **NOT** an inverse of escape_line.
 
@@ -472,7 +490,6 @@ class QqParser(object):
         :return: unescaped line
         """
         s = s.replace(self.escape_stub + 'SPACE_&', " ")
-        s = s.replace(self.escape_stub + 'SEP_&', self.sep_char)
         s = s.replace(self.escape_stub + 'COMMAND_&', self.tb_char)
         s = s.replace(self.escape_stub + 'OPEN_CURVE_&', '{')
         s = s.replace(self.escape_stub + 'OPEN_SQUARE_&', '[')
@@ -481,275 +498,297 @@ class QqParser(object):
 
         return s
 
-    def split_line_by_tags(self, line):
-        """
-        something \subtag other | this \is \a \test
-        -->
-        something
-        \subtag other
-        \separator
-        this
-        \is
-        \a
-        \test
+    def position(self, line, offset):
+        return Position(line=line, offset=offset, lines=self._lines)
 
-        :param line:
-        :return:
-        """
-        sep = self.command_regex + "(" + self.tag_regex + r"(?!{))|" + self.sep_regex
-        seps = re.finditer(sep, line)
-        cursor = 0
-        chunk = []
-        for m in seps:
-            tag = m.group(1)
-            tag = self.alias2tag.get(tag, tag)
-            if tag in self.allowed_tags:
-                chunk.append(line[cursor: m.start()].lstrip())
-                cursor = m.start()
-            elif m.group(0) == self.sep_char:
-                chunk.append(line[cursor: m.start()].lstrip())
-                chunk.append(self.separator_tag)
-                cursor = m.end()
-        chunk.append(line[cursor:])
-        return chunk
-
-    def parse(self, lines):
+    def parse_init(self, text):
         """
         :param lines:
         :return:
         """
-        if isinstance(lines, str):
-            lines = lines.splitlines(keepends=True)
+        if isinstance(text, str):
+            lines = text.splitlines(keepends=True)
+        else:
+            lines = text
 
-        lines.reverse()
-        numbers = list(range(len(lines), 0, -1))
-        # We probably will append some elements to lines and have to
-        # maintain their numbers for error messages
+        lines = [self.escape_line(line) for line in lines]
 
-        tree = QqTag('_root')
-        stack = [StackElement(tree, self.get_indent(lines[-1])-1)]
-        self._stack = stack
-        self._last_tag = stack[0]
-        current_tag = stack[0].tag
+        self._lines = lines
+        self._indents = [get_indent(line, empty_to_none=True) for line in lines]
 
-        current_indent = self.get_indent(lines[-1])
+    def parse(self, lines):
+        self.parse_init(lines)
+        start = self.position(0, 0)
+        stop = self.position(None, 0)
+        tags = self.parse_fragment(start, stop,
+                                   current_indent=get_indent(
+                                       self._lines[0]))
+        return QqTag("_root", tags)
 
+    def append_chunk_and_clear(self, tags, chunk):
+        joined = "".join(chunk)
+        if joined:
+            tags.append(self.unescape_line(joined))
+        chunk.clear()
+
+    def parse_fragment(self, start, stop, current_indent,
+                       merge_lines=False):
+
+        tags = []
+
+        pos = start.copy()
         chunk = []
-        chunknumbers = []
+        print("start =", start)
+        print("stop =", stop)
+        print("parsing fragment:")
+        print(start.lines_before(stop))
+        print("current indent =", current_indent)
+        print("merge_lines = ", merge_lines)
 
-        while lines:
+        while pos < stop:
+            # loop invariant: everything before pos is appended to tags
+            # or chunk
 
-            skip = False
+            line = pos.clipped_line(stop)
+            print("current_indent =", current_indent)
+            print("pos =", pos)
+            print("Processing line", repr(line))
+            if not line.strip():
+                if line and line[-1] == '\n':
+                    chunk.append("\n")
+                pos.nextline()
+                continue
+            if pos.offset == 0:
+                print("dedenting by", current_indent)
+                line = dedent(line, current_indent)
+                pos.offset = current_indent
+                blockmode = True
+            else:
+                blockmode = False
 
-            line = self.escape_line(lines.pop())
-            i = numbers.pop()
-
-            if line.strip() == "":
-                indent_line = " "*current_indent
-
-                if len(line)>0 and line[-1] == "\n":
-                    line = indent_line + "\n"
-                else:
-                    line = indent_line
-
-            indent_decreased = False
-            indent = self.get_indent(line)
-            lin = line.lstrip()
-
-            if indent < current_indent:
-                indent_decreased = True
-                current_indent = indent
-
-            if indent_decreased and stack[-1].indent is None:
-                raise QqError("Indent decreased during inline mode on line %i: %s", (i, lin))
-
-            if stack[-1].indent is not None:
-                if indent <= stack[-1].indent:
-                    current_tag.append_line(self.unescape_line("".join(chunk)))
-                    chunk = []
-
-                while indent <= stack[-1].indent:
-                    self.pop_stack()
-
-            if indent_decreased and indent != self._last_tag.indent:
-                raise QqError("Formatting error: unexpected indent on line %i: %s \n\
-                (expected indent %i on tag %s, get indent %i, stack: %s)" % (i,
-                                                                             lin,
-                                                                             self._last_tag.indent,
-                                                                             self._last_tag.tag.name, indent,
-                                                                             self.str_stack()))
-
-            current_tag = stack[-1].tag
-
-            # Process block tags
-
-            if lin and lin[0] == self.tb_char:
-                m = re.match(self.command_regex + self.tag_regex + r"(?= |{}|$)".format(self.command_regex), lin)
-
+            if (not merge_lines and blockmode and line.strip() and
+                    line[0] == self.tb_char):
+                # possibly block tag line
+                m = self.blocktag_rc.match(line)
                 if m:
                     tag = m.group(1)
                     tag = self.alias2tag.get(tag, tag)
                     if tag in self.allowed_tags:
-                        if stack[-1].indent is None:
-                            raise QqError("New block tag open during inline mode on line %i: %s", (i, lin))
 
-                        # process include tag
-                        if tag == self.include:
-                            filename = os.path.join(self.include_dir, lin[m.end():].strip())
-                            with open(filename) as f:
-                                includelines = f.readlines()
-                            if includelines:
-                                includeindent = self.get_indent(includelines[0])
-                                for includeline in reversed(includelines):
-                                    lines.append(" "*(current_indent-includeindent) + includeline)
-                                    numbers.append(i)
-                            skip = True
-                            continue
-
-                        new_tag = QqTag(tag, [])
-
-                        current_tag.append_line(self.unescape_line("".join(chunk)))
-                        chunk = []
-
-                        current_tag.append_child(new_tag)
-
-                        stack.append(StackElement(new_tag, indent))
-
-                        if len(lines) > 0 and self.get_indent(lines[-1]) > indent:
-                            current_indent = self.get_indent(lines[-1])
-                            tag_indent = current_indent
-                        else:
-                            tag_indent = self.get_indent(line) + 4
-                            # virtual tag indent
-
-                        rest = lin[m.end():]
-                        restlines = [" "*tag_indent + l.lstrip() for l in self.split_line_by_tags(rest)
-                                     if l.strip() != ""]
-                        if restlines:
-                            current_indent = tag_indent
-                        for restline in reversed(restlines):
-                            lines.append(restline)
-                            numbers.append(i)
-
-                        # the rest of line is added to lines, so we may continue -- they will be processed automatically
+                        rest_of_line = line[m.end(1):]
+                        spaces = re.match(r"\s*", rest_of_line).end(0)
+                        newstart_pos = (current_indent +
+                                        first_nonspace_idx(line, m.end(1)))
+                        newstop_line, tag_contents_indent = (
+                            self.block_tag_stop_line_indent(
+                                pos.line, stop.line
+                            )
+                        )
+                        parsed_content = self.parse_fragment(
+                            self.position(pos.line, newstart_pos),
+                            self.position(newstop_line, 0),
+                            tag_contents_indent
+                        )
+                        self.append_chunk_and_clear(tags, chunk)
+                        tags.append(QqTag(tag, children=parsed_content))
+                        pos.line = newstop_line
+                        pos.offset = 0
                         continue
 
-            # Process inline tags
+            tag_position, tag, ttype, after = self.locate_tag(pos, stop)
+            if tag is not None:
+                chunk.append(pos.clipped_line(tag_position))
+                self.append_chunk_and_clear(tags, chunk)
+            if ttype == "block":
+                next_bt_position, _ = self.scan_after_attribute_tag(
+                    after, stop, merge_lines=merge_lines)
+                parsed_content = self.parse_fragment(after,
+                                                     next_bt_position,
+                                                     current_indent)
+                tags.append(QqTag(tag, children=parsed_content))
+                pos = next_bt_position.copy()
+                continue
+            if ttype == "inline":
+                items = self.inline_tag_contents(after, stop)
+                parsed_items = []
 
-            inlines = re.finditer(self.command_regex +
-                                  r'(?P<tag>' + self.tag_regex + ')' +
-                                  r'(?P<bracket>[\{\[])' +
-                                  r"|[\{\[\]\}]", line)
+                for item in items:
+                    parsed_content = self.parse_fragment(
+                        item['start'], item['stop'], current_indent,
+                        merge_lines=True)
+                    if item['type'] == '{':
+                        parsed_items.extend(parsed_content)
+                    else: # item['type'] == '['
+                        parsed_items.append(QqTag("_item",
+                                                  children=parsed_content))
+                tags.append(QqTag(tag, children=parsed_items))
+                pos = items[-1]["stop"].copy().nextchar()
+                continue
 
+            chunk.append(line)
+            pos.nextline()
 
-            # inline tags or brackets
+        self.append_chunk_and_clear(tags, chunk)
+        return tags
 
-            cursor = current_indent
+    def block_tag_stop_line_indent(self, start_line, stop_line):
+        tag_indent = self._indents[start_line]
+        if stop_line <= start_line + 1:
+            # don't have more lines
+            # e.g.
+            # \tag rest of line
+            # EOF
+            # indent is of no importance, so set it to -1
+            return start_line + 1, -1
 
-            for m in inlines:
-                if stack[-1].indent is None:
-                    if m.group(0) == stack[-1].bracket:
-                        stack[-1].bracket_counter += 1
-                    elif m.group(0) == {'{': '}', '[': ']'}[stack[-1].bracket]:
-                        # closing bracket corresponding to current open tag
-                        stack[-1].bracket_counter -= 1
-                        if stack[-1].bracket_counter == 0:
-                            # close current inline tag
+        cur_line = start_line + 1
+        while self._indents[cur_line] is None and cur_line < stop_line:
+            # skip empty lines
+            cur_line += 1
+        if cur_line == stop_line:
+            # we have only empty lines
+            return cur_line, -1
 
-                            r"""
-                            \blocktag
-                                Some \inlinetag[started
-                                and here \otherinlinetag{continued}
-                                here \otherblocktag started
-                                and here two lines | separated from each other
-                                and that's all for inlinetag] we continue
+        # we have non-empty line
+        contents_indent = self._indents[cur_line]
+        if contents_indent <= tag_indent:
+            # tag is already closed
+            return cur_line, -1
 
-                            --->
+        for i in range(cur_line + 1, stop_line):
+            cur_indent = self._indents[i]
+            if (cur_indent is not None and
+                    cur_indent < contents_indent):
+                if cur_indent > tag_indent:
+                    raise QqError("Incorrect indent at line: "
+                                  + self._lines[i])
+                return i, contents_indent
+        # processed all lines, no dedent
 
-                            \blocktag
-                                Some
-                                    \inlinetag
-                                        started
-                                        and here
-                                        \otherinlinetag
-                                            continued
-                                        here
-                                        \otherblocktag
-                                            started and here two lines
-                                        <separator>
-                                        separated from each other
-                            """
-                            chunk.append(line[cursor: m.start()])
-                            chunknumbers.append(i)
-                            if stack[-1].bracket == '{':
+        return stop_line, contents_indent
 
-                                current_tag.append_line(self.unescape_line("".join(chunk)))
-                                chunk = []
+    def locate_tag(self, start: Position, stop: Position):
+        """
+        locates inline or block tag on line
+        beginning with given position pos
 
-                                cursor = m.end()
+        does not propogate on the following lines
 
-                                self.pop_stack()
-                                current_tag = stack[-1].tag
-                            else:
-                                newline = line[m.end():]
-                                if newline and newline[0] == ' ':
-                                    newline = self.escape_line("\\ ") + newline[1:]
-                                lines.append(" "*current_indent + newline)
-                                numbers.append(i)
-                                # push the rest of line to lines to process them later
+        :param start: position to start with
+        :param stop: position to stop
+        :return: (tag_position: Position of first tag character (\\)
+                  tag: tag name,
+                  type: 'block' or 'inline',
+                  after: Position of first non-space character after tag
+                    (if it is block tag) or simply first character after
+                    tag (if it is inline tag)
+        """
+        line = start.clipped_line(stop)
 
-                                splitted_chunk = [" "*(current_indent+4) + l.lstrip()
-                                                  for l in self.split_line_by_tags("".join(chunk))
-                                                  if l.strip() != ""]
-                                if splitted_chunk:
-                                    for newline in reversed(splitted_chunk):
-                                        lines.append(newline)
-                                        numbers.append(i)
-                                        # TODO: numbers will refer to the number of line where tag is closed
-                                    stack[-1].bracket = None
-                                    stack[-1].indent = current_indent
-                                    current_indent += 4
-                                else:
-                                    self.pop_stack()
-                                    current_tag = stack[-1].tag
+        for m in self.anytag_rc.finditer(line):
+            tag = m.group(1)
+            tag_position = self.position(start.line,
+                                         start.offset + m.start(0))
+            after = self.position(
+                start.line, start.offset +
+                first_nonspace_idx(line, m.end(1)))
+            next_char = get(line, m.end(1))
+            if next_char not in ['{', '[']:
+                if tag in self.allowed_tags:
+                    return tag_position, tag, 'block', after
+            else:
+                if tag in self.allowed_inline_tags:
+                    return tag_position, tag, 'inline', after
+        return min(start.get_end_of_line(), stop), None, None, None
 
-                                chunk = []
-                                skip = True
-                                # this is done to skip the rest of line at the end of while
+    def inline_tag_contents(self, start: Position, stop: Position):
+        """
+        Finds the contents of inline tag:
 
-                                break
+        :param start:
+        :param stop:
+        :return: a list of dicts {'type': '[' or '{',
+                                  'start': Position,
+                                  'stop': Position}
+        """
+        items = []
+        pos = start.copy()
+        while pos < stop and pos.getchar in ['[', '{']:
+            type = pos.getchar
+            end = self.match_bracket(pos, stop)
+            items.append({'type': type,
+                          'start': pos.copy().nextchar(),
+                          'stop': end.copy()})
+            pos = end
+            pos.nextchar()
+        return items
 
-                inline_tag = m.group('tag')
-                if inline_tag is not None and stack[-1].bracket != '[':
-                    if inline_tag in self.allowed_inline_tags:
+    def match_bracket(self, start: Position, stop: Position) -> Position:
+        """
+        Finds the matching closing bracket
+        :param start: start position, its value should be '[' or '{'
+        :param stop: stop position
+        :return: position of matching closing bracket
+        """
+        open_bracket = self._lines[start.line][start.offset]
+        assert open_bracket in ['[', '{']
+        pos = start.copy()
+        counter = 0
+        # open bracket counter
+        closing_bracket = {'[': ']', '{': '}'}[open_bracket]
+        bracket_rc = re.compile(re.escape(open_bracket) + "|" +
+                                re.escape(closing_bracket))
 
-                        chunk.append(line[cursor: m.start()])
-                        chunknumbers.append(i)
-                        current_tag.append_line(self.unescape_line("".join(chunk)))
-                        chunk = []
+        while pos < stop:
+            line = pos.clipped_line(stop)
+            for m in bracket_rc.finditer(line):
+                if (self.position(pos.line, pos.offset + m.start(0)) >=
+                        stop):
+                    raise QqError("No closing bracket found: "
+                                  "start: {}, stop: {}".format(start,
+                                                               stop))
+                if m.group(0) == open_bracket:
+                    counter += 1
+                else:
+                    counter -= 1
+                    if counter == 0:
+                        return self.position(pos.line,
+                                             pos.offset + m.start(0))
+            pos.nextline()
+        raise QqError("No closing bracket found: " 
+                      "start: {}, stop: {}".format(start, stop))
 
-                        new_tag = QqTag(inline_tag, [])
+    def scan_after_attribute_tag(self, start: Position,
+                                 stop: Position, merge_lines = False):
+        """
+        scans the rest of line / fragment after block tag found inline
+        looking for another block tag
+        skipping every inline tag with its contents
 
-                        current_tag.append_child(new_tag)
-                        stack.append(StackElement(new_tag, indent=None,
-                                                  bracket=m.group('bracket'),
-                                                  bracket_counter=1))
-                        current_tag = new_tag
-                        cursor = m.end()
-                    else:
-                        if stack[-1].indent is None and m.group('bracket') == stack[-1].bracket:
-                            # Process case of non-allowed tag with bracket for correct brackets counting
-                            stack[-1].bracket_counter += 1
+        :param start: first character to scan
+        :param stop: where to stop
+        :return: (Position of the first character of next block tag or EOL,
+                  Position of the first non-space character after block tag
+                  or None if EOL found)
+        """
+        if not merge_lines:
+            stop = min(stop, start.copy().nextline())
+            # looking only for current line
 
-            if not skip:
-                # cursor is None if special inline tag is closed and nothing has to be done here
-                # Append the rest of line to current tag
-                chunk.append(line[cursor:])
-                chunknumbers.append(i)
+        pos = start.copy()
+        ret = None
 
-        # append final lines to tag
-        current_tag.append_line(self.unescape_line("".join(chunk)))
+        while pos < stop:
+            tag_position, tag, type, after = self.locate_tag(pos, stop)
+            if tag is None:
+                pos.nextline()
+                ret = tag_position
+                continue
+            if type == 'block':
+                return tag_position, after
+            else:
+                contents = self.inline_tag_contents(after, stop)
+                pos = contents[-1]['stop'].nextchar()
+                ret = min(pos.get_end_of_line(), stop)
 
-        tree.process_separator_recursively(self.separator)
-
-        return tree
+        return ret, None
