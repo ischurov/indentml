@@ -5,6 +5,7 @@ from collections import Sequence, MutableSequence, namedtuple
 from indentml.indexedlist import IndexedList
 import re
 from functools import total_ordering
+import os
 
 class QqError(Exception):
     pass
@@ -83,9 +84,10 @@ class QqTag(MutableSequence):
     def is_simple(self):
         """
         Simple tags are those containing only one child
+        and it is string
         :return:
         """
-        return len(self) == 1
+        return len(self) == 1 and isinstance(self[0], str)
 
     @property
     def value(self):
@@ -304,7 +306,6 @@ class QqTag(MutableSequence):
                 # if not_simple == 'skip': pass
         return values
 
-    # TODO: probably, remove
     @property
     def itemized(self) -> bool:
         """
@@ -321,6 +322,55 @@ class QqTag(MutableSequence):
         if self.itemized:
             return self
         return QqTag(self.name, [QqTag("_item", self, adopt=True)])
+
+    def unitemized(self):
+        """
+        If self is simple (only one child and it is string), return self
+        If self's only child is "_item", return it
+        :return:
+        """
+        # TODO testme
+
+        if self.is_simple:
+            return self
+        if len(self) == 1 and self[0].name == "_item":
+            return self[0]
+        raise QqError("Can't unitemize tag " + str(self))
+
+
+    def process_include_tags(self, parser, includedir, follow=True):
+        """
+        Recursively processes include tags (as defined by parser.include)
+        Reads files from includedir
+
+        Does not modify current tag, returns a new one instead
+
+        :param parser:
+        :param includedir:
+        :param follow: follow include directives in included files
+            recursively
+        :return: processed tree
+        """
+
+        # TODO FIXME Sanity checks for includedir
+
+        newtree = QqTag(self.name)
+        for child in self:
+            if isinstance(child, str):
+                newtree.append_child(child)
+            else: # child is QqTag
+                if child.name == parser.include:
+                    include_parsed = parser.parse_file(
+                        os.path.join(includedir, child.value))
+                    if follow:
+                        include_parsed = (
+                            include_parsed.process_include_tags(
+                                parser, includedir, follow))
+                    newtree.extend_children(include_parsed)
+                else:
+                    newtree.append(child.process_include_tags(
+                        parser, includedir, follow))
+        return newtree
 
 def dedent(line, indent):
     if line[:indent] == " " * indent:
@@ -721,6 +771,7 @@ class QqParser(object):
                           'stop': end.copy()})
             pos = end
             pos.nextchar()
+        print(items)
         return items
 
     def match_bracket(self, start: Position, stop: Position) -> Position:
@@ -776,7 +827,9 @@ class QqParser(object):
             # looking only for current line
 
         pos = start.copy()
-        ret = None
+        ret = start.copy()
+        print("scanning after attribute tag, beginning with ", start)
+        print("stop: ", stop)
 
         while pos < stop:
             tag_position, tag, type, after = self.locate_tag(pos, stop)
@@ -792,3 +845,8 @@ class QqParser(object):
                 ret = min(pos.get_end_of_line(), stop)
 
         return ret, None
+
+    def parse_file(self, filename):
+        with open(filename) as f:
+            lines = f.readlines()
+        return self.parse(lines)
