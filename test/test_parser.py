@@ -585,3 +585,13 @@ some \inline[square bracket \[ inside] okay
                          ["_root", ["blocktag", "Some ",
                                     ["inlinetag", ["_item", "Hello"],
                                      ["_item", "world"]]]])
+
+
+    def test_end_with_empty_line(self):
+        doc = dedent(r"""
+        \tag
+            
+            """)
+        parser = QqParser(allowed_tags={"tag"})
+        tree = parser.parse(doc)
+        print(tree.as_list())

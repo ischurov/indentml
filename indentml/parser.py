@@ -689,7 +689,7 @@ class QqParser(object):
             return start_line + 1, -1
 
         cur_line = start_line + 1
-        while self._indents[cur_line] is None and cur_line < stop_line:
+        while cur_line < stop_line and self._indents[cur_line] is None:
             # skip empty lines
             cur_line += 1
         if cur_line == stop_line:
