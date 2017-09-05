@@ -584,4 +584,4 @@ some \inline[square bracket \[ inside] okay
         self.assertEqual(tree.as_list(),
                          ["_root", ["blocktag", "Some ",
                                     ["inlinetag", ["_item", "Hello"],
-                                     ["_item"], "world"]]])
+                                     ["_item", "world"]]]])
