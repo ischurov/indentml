@@ -554,3 +554,34 @@ some \inline[square bracket \[ inside] okay
                                                    ['empty',
                                                     ['_item', '\n\n']],
                                                    ' tag\n']])
+
+    def test_blocktag_inside_inlinetag(self):
+        doc = r"""\blocktag Some \inlinetag[Hello \blocktag test]"""
+        parser = QqParser(allowed_tags={'inlinetag', 'blocktag'})
+        tree = parser.parse(doc)
+
+        self.assertEqual(tree.as_list(), ['_root', ['blocktag', 'Some ',
+                                          ['inlinetag',
+                                           ['_item', 'Hello ',
+                                            ['blocktag', 'test']]]]])
+
+        doc = r"""Some \inlinetag[Hello \blocktag test
+        \blocktag another test]"""
+        parser = QqParser(allowed_tags={'inlinetag', 'blocktag'})
+        tree = parser.parse(doc)
+        print(tree.as_list())
+        self.assertEqual(tree.as_list(),
+                         ['_root', 'Some ', ['inlinetag',
+                                             ['_item', 'Hello ',
+                                              ['blocktag', 'test\n'],
+                                              ['blocktag',
+                                               'another test']]]])
+
+    def test_inlinetag_with_multiple_arguments(self):
+        doc = r"""\blocktag Some \inlinetag[Hello][world]"""
+        parser = QqParser(allowed_tags={'inlinetag', 'blocktag'})
+        tree = parser.parse(doc)
+        self.assertEqual(tree.as_list(),
+                         ["_root", ["blocktag", "Some ",
+                                    ["inlinetag", ["_item", "Hello"],
+                                     ["_item"], "world"]]])
