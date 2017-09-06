@@ -105,6 +105,7 @@ class TestQqParser(unittest.TestCase):
 """
         parser = QqParser(allowed_tags={'tag'})
         tree = parser.parse(doc)
+        print(tree.as_list())
         self.assertEqual(tree[0], "Hello")
 
         self.assertEqual(tree._tag.name, 'tag')
@@ -197,7 +198,7 @@ End"""
         tag_position, tag, type, after = parser.locate_tag(start, stop)
 
         start = after.copy()
-        before, after = parser.scan_after_attribute_tag(start, stop)
+        before = parser.scan_after_attribute_tag(start, stop)
         self.assertEqual(start.clipped_line(before),
                          'this \\tag{inline \\tag{} \\tag}q ')
 
@@ -213,7 +214,7 @@ End"""
         tag_positoin, tag, type, after = parser.locate_tag(start, stop)
 
         start = after.copy()
-        before, after = parser.scan_after_attribute_tag(start, stop)
+        before = parser.scan_after_attribute_tag(start, stop)
         self.assertEqual(start.clipped_line(before),
                          'this \\tag{inline \\tag{} \\tag}')
 
@@ -254,7 +255,7 @@ the next one\othertag{okay}}
                     'othertag',
                     'okay'
                 ]
-            ]
+            ], ''
         ])
 
     def test_inline_tag4(self):
@@ -375,32 +376,34 @@ the next one\othertag{okay}}
                           'quiz', 'choice',
                           'comment', 'correct', 'figure'})
         tree = parser.parse(doc)
+        print(tree.as_list())
         self.assertEqual(tree.as_list(), ['_root',
                                           'Hello!',
-                                          ['h1', 'Intro to qqmbr\n'],
+                                          ['h1', 'Intro to qqmbr'],
+                                          '',
                                           ['h2',
-                                           'Fresh documentation system\n'],
-                                          '**qqmbr** is a documentation system intended to be extremely simple and extremely extensible.\nIt was written to allow writing rich content that can be compiled into different formats.\nOne source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other. Look below to see it in action.\n',
+                                           'Fresh documentation system'],
+                                          '\n**qqmbr** is a documentation system intended to be extremely simple and extremely extensible.\nIt was written to allow writing rich content that can be compiled into different formats.\nOne source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other. Look below to see it in action.\n',
                                           ['h3',
-                                           'This is nice level-3 header\n'],
-                                          'Some paragraph text. See also ',
+                                           'This is nice level-3 header'],
+                                          '\nSome paragraph text. See also ',
                                           ['ref', 'sec:another'],
                                           ' (reference to different header).\n\nThere are LaTeX formulas here:\n',
                                           ['eq',
-                                           'x^2 + y^2 = z^2\n'],
-                                          '`\\eq` is a qqtag. It is better than tag, because it is auto-closing (look at the indent, like Python).\n\nHere is formula with the label:\n',
+                                           'x^2 + y^2 = z^2'],
+                                          '\n`\\eq` is a qqtag. It is better than tag, because it is auto-closing (look at the indent, like Python).\n\nHere is formula with the label:\n',
                                           ['equation',
                                            ['label', 'eq:Fermat'],
-                                           'x^n + y^n = z^n, \\quad n>2\n'],
-                                          'Several formulas with labels:\n',
+                                           'x^n + y^n = z^n, \\quad n>2'],
+                                          '\nSeveral formulas with labels:\n',
                                           ['gather',
                                            ['item',
                                             ['label', 'eq:2x2'],
                                             '2\\times 2 = 4'],
                                            ['item',
                                             ['label', 'eq:3x3'],
-                                            '3\\times 3 = 9\n']],
-                                          'We can reference formula ',
+                                            '3\\times 3 = 9']],
+                                          '\nWe can reference formula ',
                                           ['eqref', 'eq:Fermat'],
                                           ' and ',
                                           ['eqref', 'eq:2x2'],
@@ -409,15 +412,17 @@ the next one\othertag{okay}}
                                            'Another level-3 header ',
                                            ['label',
                                             'sec:another']],
-                                          'Here is the header we referenced.\n',
+                                          '\nHere is the header we referenced.\n',
                                           ['h3',
-                                           'More interesting content\n'],
+                                           'More interesting content'],
+                                          '',
                                           ['figure',
                                            ['source',
                                             'http://example.com/somefig.png'],
                                            ['caption',
                                             'Some figure'],
-                                           ['width', '500px\n']],
+                                           ['width', '500px']],
+                                          '',
                                           ['question',
                                            'Do you like qqmbr?',
                                            ['quiz',
@@ -445,7 +450,8 @@ the next one\othertag{okay}}
                                                           'have some '
                                                           'inline\n',
                                           ['tag', 'here and ',['othertag',
-                                                               'there']]]])
+                                                               'there']],
+                                                    '']])
 
     def test_alias2tag(self):
         doc = r"""\# Heading 1
@@ -525,7 +531,7 @@ some \inline[square bracket \[ inside] okay
         self.assertEqual(tree.as_list(),
                          ['_root',
                           ['tag', 'hello ',
-                           ['tag', 'world \n this is \n a '],
+                           ['tag', 'world \n this is \n a'],
                            ['tag', 'test']]])
 
     def test_multiple_arguments2(self):
@@ -614,3 +620,16 @@ some \inline[square bracket \[ inside] okay
                          b'<tag>other content'
                          b'</tag>more text here'
                          b'</tag></_root>')
+
+    def test_newline(self):
+        doc = dedent(r"""
+        \tag
+            Hello
+        
+        Stop.
+        """)
+        parser = QqParser(allowed_tags={'tag'})
+        tree = parser.parse(doc)
+        self.assertEqual(tree.as_list(),
+                         ['_root', '', ['tag', 'Hello'],
+                          '\nStop.'])

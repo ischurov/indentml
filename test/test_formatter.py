@@ -36,6 +36,6 @@ class TestDummyXMLFormatter(unittest.TestCase):
                     Some image""")
         obtained = parse_and_format(doc, DummyXMLFormatter,
                                     allowed_tags={'image', 'src', 'width'})
-        expected = dedent("<image><src>http://example.com </src>"
+        expected = dedent("<image><src>http://example.com</src>"
                           "<width>100%</width>Some image</image>")
         self.assertEqual(obtained, expected)

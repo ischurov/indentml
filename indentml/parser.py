@@ -6,7 +6,8 @@ from indentml.indexedlist import IndexedList
 import re
 from functools import total_ordering
 import os
-from xml.etree.ElementTree import Element, SubElement
+from xml.etree.ElementTree import Element
+from itertools import islice
 
 class QqError(Exception):
     pass
@@ -93,7 +94,7 @@ class QqTag(MutableSequence):
     @property
     def value(self):
         if self.is_simple:
-            return self[0].strip()
+            return self[0]
         raise QqError(
             "More than one child, value is not defined, QqTag: " +
             str(self))
@@ -444,6 +445,18 @@ class Position(object):
             self.nextline()
         return self
 
+    def prevchar(self):
+        self.offset -= 1
+        if self.offset < 0:
+            self.line -= 1
+            self.offset = len(self.getline) - 1
+        return self
+
+    def prevline(self):
+        self.offset = 0
+        self.line -= 1
+        return self
+
     def nextline(self):
         self.offset = 0
         self.line += 1
@@ -611,11 +624,13 @@ class QqParser(object):
                                        self._lines[0]))
         return QqTag("_root", tags)
 
-    def append_chunk_and_clear(self, tags, chunk, stripeol=False):
+    def append_chunk_and_clear(self, tags, chunk, stripeol=False,
+                               ignoreempty=False):
         joined = "".join(chunk)
         if stripeol and joined and joined[-1] == "\n":
             joined = joined[:-1]
-        if joined:
+        if joined or (not ignoreempty and chunk):
+            # empty chunk is not the same as chunk with empty line
             tags.append(self.unescape_line(joined))
         chunk.clear()
 
@@ -669,7 +684,9 @@ class QqParser(object):
                         )
                         self.append_chunk_and_clear(tags, chunk,
                                                     stripeol=True)
-                        tags.append(QqTag(tag, children=parsed_content))
+                        tags.append(
+                            QqTag(tag,
+                                  children=parsed_content))
                         pos.line = newstop_line
                         pos.offset = 0
                         continue
@@ -677,12 +694,14 @@ class QqParser(object):
             tag_position, tag, ttype, after = self.locate_tag(pos, stop)
             if tag is not None:
                 chunk.append(pos.clipped_line(tag_position))
-                self.append_chunk_and_clear(tags, chunk)
+                self.append_chunk_and_clear(tags, chunk, ignoreempty=True)
             if ttype == "block":
-                next_bt_position, _ = self.scan_after_attribute_tag(
+                next_bt_position = self.scan_after_attribute_tag(
                     after, stop, merge_lines=merge_lines)
+                new_stop = self.find_first_nonspace_character_before(
+                    next_bt_position, after).nextchar()
                 parsed_content = self.parse_fragment(after,
-                                                     next_bt_position,
+                                                     new_stop,
                                                      current_indent)
                 tags.append(QqTag(tag, children=parsed_content))
                 pos = next_bt_position.copy()
@@ -710,6 +729,17 @@ class QqParser(object):
         self.append_chunk_and_clear(tags, chunk, stripeol=True)
         return tags
 
+    def find_first_nonspace_character_before(self, start: Position,
+                                             stop: Position):
+        pos = start.copy().prevchar()
+        print("pos=", pos)
+        print("stop=", stop)
+        while pos >= stop and re.match(r"\s", pos.getchar):
+            print("Decreasing pos")
+            print(pos)
+            pos.prevchar()
+        return pos
+
     def block_tag_stop_line_indent(self, start_line, stop_line):
         tag_indent = self._indents[start_line]
         if stop_line <= start_line + 1:
@@ -720,31 +750,39 @@ class QqParser(object):
             # indent is of no importance, so set it to -1
             return start_line + 1, -1
 
-        cur_line = start_line + 1
-        while cur_line < stop_line and self._indents[cur_line] is None:
-            # skip empty lines
-            cur_line += 1
-        if cur_line == stop_line:
+        # cur_line = index of first non-empty string, if any
+        first_nonempty_line = next(
+            (i for i, indent in
+             enumerate(islice(self._indents, start_line + 1, stop_line),
+                       start_line + 1)
+             if indent is not None), stop_line)
+
+        if first_nonempty_line == stop_line:
             # we have only empty lines
-            return cur_line, -1
+            return start_line + 1, -1
 
         # we have non-empty line
-        contents_indent = self._indents[cur_line]
+        contents_indent = self._indents[first_nonempty_line]
         if contents_indent <= tag_indent:
             # tag is already closed
-            return cur_line, -1
+            return start_line + 1, -1
 
-        for i in range(cur_line + 1, stop_line):
+        last_nonempty_line = first_nonempty_line
+
+        for i in range(first_nonempty_line + 1, stop_line):
             cur_indent = self._indents[i]
-            if (cur_indent is not None and
-                    cur_indent < contents_indent):
-                if cur_indent > tag_indent:
-                    raise QqError("Incorrect indent at line: "
-                                  + self._lines[i])
-                return i, contents_indent
+            if cur_indent is not None:
+                if cur_indent >= contents_indent:
+                    last_nonempty_line = i
+                if (cur_indent < contents_indent):
+                    if cur_indent > tag_indent:
+                        raise QqError("Incorrect indent at line: "
+                                      + self._lines[i])
+                    return last_nonempty_line + 1, contents_indent
+
         # processed all lines, no dedent
 
-        return stop_line, contents_indent
+        return last_nonempty_line + 1, contents_indent
 
     def locate_tag(self, start: Position, stop: Position):
         """
@@ -864,13 +902,13 @@ class QqParser(object):
                 ret = tag_position
                 continue
             if type == 'block':
-                return tag_position, after
+                return tag_position
             else:
                 contents = self.inline_tag_contents(after, stop)
                 pos = contents[-1]['stop'].nextchar()
                 ret = min(pos.get_end_of_line(), stop)
 
-        return ret, None
+        return ret
 
     def parse_file(self, filename):
         with open(filename) as f:
