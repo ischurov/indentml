@@ -6,6 +6,7 @@ from indentml.indexedlist import IndexedList
 import re
 from functools import total_ordering
 import os
+from xml.etree.ElementTree import Element, SubElement
 
 class QqError(Exception):
     pass
@@ -379,6 +380,34 @@ class QqTag(MutableSequence):
                         parser, includedir, follow))
         return newtree
 
+    def as_etree(self):
+        tree = Element(self.name)
+        chunk = []
+        for child in self:
+            if isinstance(child, str):
+                chunk.append(child)
+            else:
+                append_text(tree, "".join(chunk))
+                chunk.clear()
+                tree.append(child.as_etree())
+        if chunk:
+            append_text(tree, "".join(chunk))
+        return tree
+
+def append_text(tree, text):
+    children = tree.getchildren()
+    if children:
+        if children[-1].tail is None:
+            children[-1].tail = text
+        else:
+            children[-1].tail += text
+    else:
+        if tree.text is None:
+            tree.text = text
+        else:
+            tree.text += text
+    return tree
+
 def dedent(line, indent):
     if line[:indent] == " " * indent:
         return line[indent:]
@@ -582,8 +611,10 @@ class QqParser(object):
                                        self._lines[0]))
         return QqTag("_root", tags)
 
-    def append_chunk_and_clear(self, tags, chunk):
+    def append_chunk_and_clear(self, tags, chunk, stripeol=False):
         joined = "".join(chunk)
+        if stripeol and joined and joined[-1] == "\n":
+            joined = joined[:-1]
         if joined:
             tags.append(self.unescape_line(joined))
         chunk.clear()
@@ -636,7 +667,8 @@ class QqParser(object):
                             self.position(newstop_line, 0),
                             tag_contents_indent
                         )
-                        self.append_chunk_and_clear(tags, chunk)
+                        self.append_chunk_and_clear(tags, chunk,
+                                                    stripeol=True)
                         tags.append(QqTag(tag, children=parsed_content))
                         pos.line = newstop_line
                         pos.offset = 0
@@ -675,7 +707,7 @@ class QqParser(object):
             chunk.append(line)
             pos.nextline()
 
-        self.append_chunk_and_clear(tags, chunk)
+        self.append_chunk_and_clear(tags, chunk, stripeol=True)
         return tags
 
     def block_tag_stop_line_indent(self, start_line, stop_line):

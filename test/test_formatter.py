@@ -25,11 +25,8 @@ class TestDummyXMLFormatter(unittest.TestCase):
 
         obtained = parse_and_format(doc, DummyXMLFormatter,
                                     allowed_tags={'tag', 'othertag'})
-        expected = dedent("""
-                            <tag>Hello
-                            <othertag>I'm indentml
-                            </othertag>How are you?
-                            </tag>I'm fine""")
+        expected = dedent("<tag>Hello<othertag>I'm indentml</othertag>"
+                          "How are you?</tag>I'm fine")
 
         self.assertEqual(obtained, expected)
 
@@ -39,7 +36,6 @@ class TestDummyXMLFormatter(unittest.TestCase):
                     Some image""")
         obtained = parse_and_format(doc, DummyXMLFormatter,
                                     allowed_tags={'image', 'src', 'width'})
-        expected = dedent(r"""
-                        <image><src>http://example.com </src><width>100%
-                        </width>Some image</image>""")
+        expected = dedent("<image><src>http://example.com </src>"
+                          "<width>100%</width>Some image</image>")
         self.assertEqual(obtained, expected)

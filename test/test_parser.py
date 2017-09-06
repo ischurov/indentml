@@ -4,6 +4,7 @@
 
 import sys
 import os
+import xml.etree.ElementTree as et
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 '..', 'indentml'))
@@ -104,7 +105,7 @@ class TestQqParser(unittest.TestCase):
 """
         parser = QqParser(allowed_tags={'tag'})
         tree = parser.parse(doc)
-        self.assertEqual(tree[0], "Hello\n")
+        self.assertEqual(tree[0], "Hello")
 
         self.assertEqual(tree._tag.name, 'tag')
         self.assertEqual(tree._tag.value, 'World')
@@ -125,11 +126,11 @@ Blank line before the end
         parser = QqParser(allowed_tags={'tag', 'othertag'})
         tree = parser.parse(doc)
         print(tree.as_list())
-        self.assertEqual(tree[0], "Hello\n")
-        self.assertEqual(tree._tag[0], "World\n")
-        self.assertEqual(tree._tag._othertag._children, ["This\nIs\n"])
-        self.assertEqual(tree._tag[2], 'A test\n')
-        self.assertEqual(tree[2], 'The end\n\nBlank line before the end\n')
+        self.assertEqual(tree[0], "Hello")
+        self.assertEqual(tree._tag[0], "World")
+        self.assertEqual(tree._tag._othertag._children, ["This\nIs"])
+        self.assertEqual(tree._tag[2], 'A test')
+        self.assertEqual(tree[2], 'The end\n\nBlank line before the end')
         self.assertEqual(tree._tag.parent, tree)
         self.assertEqual(tree._tag._othertag.parent, tree._tag)
 
@@ -143,7 +144,7 @@ End"""
         parser = QqParser(allowed_tags={'tag'})
         tree = parser.parse(doc)
         self.assertEqual(tree._tag._children,
-                         ['First\n    Second\nThird\n'])
+                         ['First\n    Second\nThird'])
 
     def test_match_bracket(self):
         doc = dedent("""\
@@ -223,7 +224,7 @@ End"""
         tree = parser.parse(doc)
         self.assertEqual(tree[0], 'Hello, ')
         self.assertEqual(tree._tag.value, 'inline')
-        self.assertEqual(tree[2], ' tag!\n')
+        self.assertEqual(tree[2], ' tag!')
 
     def test_inline_tag2(self):
         doc = r"""Hello, \othertag{\tag{inline} tag}!
@@ -233,7 +234,7 @@ End"""
        # self.assertEqual(tree._othertag._tag.value, 'inline')
         self.assertEqual(tree.as_list(), ['_root', 'Hello, ',
                                           ['othertag', ['tag', 'inline'],
-                                           ' tag'], '!\n'])
+                                           ' tag'], '!'])
 
     def test_inline_tag3(self):
         doc = r"""Hello, \tag{
@@ -253,8 +254,7 @@ the next one\othertag{okay}}
                     'othertag',
                     'okay'
                 ]
-            ],
-            '\n'
+            ]
         ])
 
     def test_inline_tag4(self):
@@ -376,62 +376,61 @@ the next one\othertag{okay}}
                           'comment', 'correct', 'figure'})
         tree = parser.parse(doc)
         self.assertEqual(tree.as_list(), ['_root',
-                                          'Hello!\n',
-                                          ['h1', 'Intro to qqmbr\n\n'],
+                                          'Hello!',
+                                          ['h1', 'Intro to qqmbr\n'],
                                           ['h2',
-                                           'Fresh documentation system\n\n'],
-                                          '**qqmbr** is a documentation system intended to be extremely simple and extremely extensible.\nIt was written to allow writing rich content that can be compiled into different formats.\nOne source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other. Look below to see it in action.\n\n',
+                                           'Fresh documentation system\n'],
+                                          '**qqmbr** is a documentation system intended to be extremely simple and extremely extensible.\nIt was written to allow writing rich content that can be compiled into different formats.\nOne source, multiple media: HTML, XML, LaTeX, PDF, eBooks, any other. Look below to see it in action.\n',
                                           ['h3',
-                                           'This is nice level-3 header\n\n'],
+                                           'This is nice level-3 header\n'],
                                           'Some paragraph text. See also ',
                                           ['ref', 'sec:another'],
-                                          ' (reference to different header).\n\nThere are LaTeX formulas here:\n\n',
+                                          ' (reference to different header).\n\nThere are LaTeX formulas here:\n',
                                           ['eq',
-                                           'x^2 + y^2 = z^2\n\n'],
-                                          '`\\eq` is a qqtag. It is better than tag, because it is auto-closing (look at the indent, like Python).\n\nHere is formula with the label:\n\n',
+                                           'x^2 + y^2 = z^2\n'],
+                                          '`\\eq` is a qqtag. It is better than tag, because it is auto-closing (look at the indent, like Python).\n\nHere is formula with the label:\n',
                                           ['equation',
-                                           ['label', 'eq:Fermat\n'],
-                                           'x^n + y^n = z^n, \\quad n>2\n\n'],
-                                          'Several formulas with labels:\n\n',
+                                           ['label', 'eq:Fermat'],
+                                           'x^n + y^n = z^n, \\quad n>2\n'],
+                                          'Several formulas with labels:\n',
                                           ['gather',
                                            ['item',
-                                            ['label', 'eq:2x2\n'],
-                                            '2\\times 2 = 4\n'],
+                                            ['label', 'eq:2x2'],
+                                            '2\\times 2 = 4'],
                                            ['item',
-                                            ['label', 'eq:3x3\n'],
-                                            '3\\times 3 = 9\n\n']],
+                                            ['label', 'eq:3x3'],
+                                            '3\\times 3 = 9\n']],
                                           'We can reference formula ',
                                           ['eqref', 'eq:Fermat'],
                                           ' and ',
                                           ['eqref', 'eq:2x2'],
-                                          ' just like we referenced header before.\n\n',
+                                          ' just like we referenced header before.\n',
                                           ['h3',
                                            'Another level-3 header ',
                                            ['label',
-                                            'sec:another\n'],
-                                           '\n'],
-                                          'Here is the header we referenced.\n\n',
+                                            'sec:another']],
+                                          'Here is the header we referenced.\n',
                                           ['h3',
-                                           'More interesting content\n\n'],
+                                           'More interesting content\n'],
                                           ['figure',
                                            ['source',
-                                            'http://example.com/somefig.png\n'],
+                                            'http://example.com/somefig.png'],
                                            ['caption',
-                                            'Some figure\n'],
-                                           ['width', '500px\n\n']],
+                                            'Some figure'],
+                                           ['width', '500px\n']],
                                           ['question',
-                                           'Do you like qqmbr?\n',
+                                           'Do you like qqmbr?',
                                            ['quiz',
                                             ['choice',
-                                             ['correct', 'false\n'],
-                                             'No.\n',
+                                             ['correct', 'false'],
+                                             'No.',
                                              ['comment',
-                                              "You didn't even try!\n"]],
+                                              "You didn't even try!"]],
                                             ['choice',
-                                             ['correct', 'true\n'],
-                                             'Yes, i like it very much!\n',
+                                             ['correct', 'true'],
+                                             'Yes, i like it very much!',
                                              ['comment',
-                                              'And so do I!\n']]]]])
+                                              'And so do I!']]]]])
 
     def test_inline_tag_at_the_beginning_of_the_line(self):
         doc = r"""\tag
@@ -440,8 +439,13 @@ the next one\othertag{okay}}
     """
         parser = QqParser(allowed_tags={'tag', 'othertag'})
         tree = parser.parse(doc)
-        self.assertEqual(tree.as_list(), ['_root', ['tag','some content here here and here and we have some inline\n',
-                                          ['tag', 'here and ',['othertag', 'there']],'\n']])
+        self.assertEqual(tree.as_list(), ['_root', ['tag','some content '
+                                                          'here here and '
+                                                          'here and we '
+                                                          'have some '
+                                                          'inline\n',
+                                          ['tag', 'here and ',['othertag',
+                                                               'there']]]])
 
     def test_alias2tag(self):
         doc = r"""\# Heading 1
@@ -452,8 +456,8 @@ Hello
                           alias2tag={"#": 'h1', "##": 'h2'})
         tree = parser.parse(doc)
         self.assertEqual(tree.as_list(),
-                         ["_root", ["h1", "Heading 1\n"],
-                          ["h2", "Heading 2\n"], "Hello\n"])
+                         ["_root", ["h1", "Heading 1"],
+                          ["h2", "Heading 2"], "Hello"])
 
     def test_non_allowed_tag_with_bracket(self):
         doc = r"""Hello \inlinetag{some \forbiddentag{here} okay} this"""
@@ -474,16 +478,16 @@ some \inline[square bracket \[ inside] okay
         parser = QqParser(allowed_tags={'sometag', 'inline'})
         tree = parser.parse(doc)
         self.assertEqual(tree.as_list(), [
-            "_root", "Hello\n",
-            ["sometag", "test\n"],
-            "\\sometag test\n",
-            ["sometag", " here we are\nwe are here\n"],
+            "_root", "Hello",
+            ["sometag", "test"],
+            "\\sometag test",
+            ["sometag", " here we are\nwe are here"],
             "some ",
             ["inline", "tag with { curve bracket inside"],
             " okay\nsome ",
             ["inline",
              ["_item", "square bracket [ inside"]],
-            " okay\n"
+            " okay"
         ])
 
     def test_square_bracket_inline(self):
@@ -527,7 +531,7 @@ some \inline[square bracket \[ inside] okay
     def test_multiple_arguments2(self):
         doc = r"""\proof
     By \ref[existence
-    and uniqueness theorem\nonumber][thm:4:eu] there exists 
+    and uniqueness theorem\nonumber][thm:4:eu] there exists
 """
         parser = QqParser(allowed_tags={"proof", "ref", "nonumber"})
         tree = parser.parse(doc)
@@ -540,7 +544,7 @@ some \inline[square bracket \[ inside] okay
                                       ['nonumber']],
                                      ['_item',
                                       'thm:4:eu']],
-                                    ' there exists \n']])
+                                    ' there exists']])
 
     def test_empty_square_bracket_tag(self):
         doc = r"""\blocktag
@@ -552,8 +556,8 @@ some \inline[square bracket \[ inside] okay
         tree = parser.parse(doc)
         self.assertEqual(tree.as_list(),["_root", ['blocktag', 'Some ',
                                                    ['empty',
-                                                    ['_item', '\n\n']],
-                                                   ' tag\n']])
+                                                    ['_item', '\n']],
+                                                   ' tag']])
 
     def test_blocktag_inside_inlinetag(self):
         doc = r"""\blocktag Some \inlinetag[Hello \blocktag test]"""
@@ -573,7 +577,7 @@ some \inline[square bracket \[ inside] okay
         self.assertEqual(tree.as_list(),
                          ['_root', 'Some ', ['inlinetag',
                                              ['_item', 'Hello ',
-                                              ['blocktag', 'test\n'],
+                                              ['blocktag', 'test'],
                                               ['blocktag',
                                                'another test']]]])
 
@@ -594,4 +598,19 @@ some \inline[square bracket \[ inside] okay
             """)
         parser = QqParser(allowed_tags={"tag"})
         tree = parser.parse(doc)
-        print(tree.as_list())
+
+    def test_as_etree(self):
+        doc = dedent(r"""
+        \tag
+            some content
+            \tag
+                other content
+            more text here
+        """)
+        parser = QqParser(allowed_tags={"tag"})
+        tree = parser.parse(doc)
+        self.assertEqual(et.tostring(tree.as_etree()),
+                         b'<_root><tag>some content'
+                         b'<tag>other content'
+                         b'</tag>more text here'
+                         b'</tag></_root>')
