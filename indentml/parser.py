@@ -7,7 +7,7 @@ import re
 from functools import total_ordering
 import os
 from xml.etree.ElementTree import Element
-from itertools import islice
+from itertools import islice, groupby
 
 class QqError(Exception):
     pass
@@ -511,11 +511,9 @@ class Position(object):
         return Position(self.line, len(self.getline), self.lines)
 
 def get(s, i, default=None):
-    try:
-        return s[i]
-    except IndexError:
+    if i < 0 or i >= len(s):
         return default
-
+    return s[i]
 
 def first_nonspace_idx(line, start=0, stop=None):
     if stop is None:
@@ -613,7 +611,28 @@ class QqParser(object):
         lines = [self.escape_line(line) for line in lines]
 
         self._lines = lines
-        self._indents = [get_indent(line, empty_to_none=True) for line in lines]
+
+        # basic indent is indent of first non-empty line, if any
+        basicindent = next(
+            (get_indent(line) for line in lines
+            if line.strip()), 0
+        )
+
+        self._indents = []
+
+        # we want to replace all Nones with min(previous, next)
+        # to do so, first, let us group all indents
+
+        indents, nums = zip(*[(indent, sum(1 for _ in g)) for indent, g in
+                           groupby(get_indent(line, empty_to_none=True)
+                                   for line in lines)])
+
+        for i, (indent, num) in enumerate(zip(indents, nums)):
+            if indent is None:
+                indent = min(get(indents, i - 1, basicindent),
+                             get(indents, i + 1, basicindent))
+            self._indents.extend([indent] * num)
+        print(self._lines, self._indents)
 
     def parse(self, lines):
         self.parse_init(lines)
@@ -735,8 +754,6 @@ class QqParser(object):
         print("pos=", pos)
         print("stop=", stop)
         while pos >= stop and re.match(r"\s", pos.getchar):
-            print("Decreasing pos")
-            print(pos)
             pos.prevchar()
         return pos
 
@@ -750,39 +767,24 @@ class QqParser(object):
             # indent is of no importance, so set it to -1
             return start_line + 1, -1
 
-        # cur_line = index of first non-empty string, if any
-        first_nonempty_line = next(
-            (i for i, indent in
-             enumerate(islice(self._indents, start_line + 1, stop_line),
-                       start_line + 1)
-             if indent is not None), stop_line)
-
-        if first_nonempty_line == stop_line:
-            # we have only empty lines
-            return start_line + 1, -1
-
-        # we have non-empty line
-        contents_indent = self._indents[first_nonempty_line]
+        contents_indent = self._indents[start_line + 1]
         if contents_indent <= tag_indent:
             # tag is already closed
+            # like
+            # \tag rest of line
+            # something
             return start_line + 1, -1
 
-        last_nonempty_line = first_nonempty_line
+        last_tag_line, last_tag_indent = next(
+            ((i, indent) for i, indent in enumerate(
+                islice(self._indents, start_line + 2, stop_line),
+                start_line + 2)
+             if indent < contents_indent), (stop_line, tag_indent))
 
-        for i in range(first_nonempty_line + 1, stop_line):
-            cur_indent = self._indents[i]
-            if cur_indent is not None:
-                if cur_indent >= contents_indent:
-                    last_nonempty_line = i
-                if (cur_indent < contents_indent):
-                    if cur_indent > tag_indent:
-                        raise QqError("Incorrect indent at line: "
-                                      + self._lines[i])
-                    return last_nonempty_line + 1, contents_indent
-
-        # processed all lines, no dedent
-
-        return last_nonempty_line + 1, contents_indent
+        if last_tag_indent > tag_indent:
+            raise QqError("Incorrect indent at line: "
+                                      + self._lines[last_tag_line])
+        return last_tag_line, contents_indent
 
     def locate_tag(self, start: Position, stop: Position):
         """
