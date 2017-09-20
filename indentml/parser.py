@@ -237,7 +237,7 @@ class QqTag(MutableSequence):
             path.append(tag)
         return path
 
-    def get_eva(self):
+    def get_eve(self):
         """
         Returns ancestor which is a direct child of a root
 
@@ -420,7 +420,8 @@ def get_indent(s, empty_to_none=False):
         m = re.match(r'\s*', s)
         beginning = m.group(0)
         if '\t' in beginning:
-            raise QqError("No tabs allowed in QqDoc at the beginning of line!")
+            raise QqError("No tabs allowed in QqDoc at the beginning "
+                          "of line! Line: " + s)
         m = re.match(r' *', s)
         return len(m.group(0))
 
@@ -440,27 +441,25 @@ class Position(object):
         return (self.line, self.offset) == (other.line, other.offset)
 
     def nextchar(self):
-        self.offset += 1
-        if self.offset >= len(self.lines[self.line]):
-            self.nextline()
-        return self
+        new = self.copy()
+        new.offset += 1
+        if new.offset >= len(new.lines[new.line]):
+            new = new.nextline()
+        return new
 
     def prevchar(self):
-        self.offset -= 1
-        if self.offset < 0:
-            self.line -= 1
-            self.offset = len(self.getline) - 1
-        return self
+        new = self.copy()
+        new.offset -= 1
+        if new.offset < 0:
+            new.line -= 1
+            new.offset = len(new.getline) - 1
+        return new
 
     def prevline(self):
-        self.offset = 0
-        self.line -= 1
-        return self
+        return Position(line=self.line - 1, offset=0, lines=self.lines)
 
     def nextline(self):
-        self.offset = 0
-        self.line += 1
-        return self
+        return Position(line=self.line + 1, offset=0, lines=self.lines)
 
     def copy(self):
         return Position(line=self.line,
@@ -476,13 +475,12 @@ class Position(object):
             self.line, self.offset)
 
     def lines_before(self, stop):
-        pos = self.copy()
+        pos = self
         out = []
         while pos < stop:
             out.append(pos.clipped_line(stop))
-            pos.nextline()
+            pos = pos.nextline()
         return out
-
 
     def clipped_line(self, stop):
         """
@@ -509,6 +507,9 @@ class Position(object):
 
     def get_end_of_line(self):
         return Position(self.line, len(self.getline), self.lines)
+
+    def get_start_of_line(self):
+        return Position(self.line, 0, self.lines)
 
 def get(s, i, default=None):
     if i < 0 or i >= len(s):
@@ -669,7 +670,7 @@ class QqParser(object):
             if not line.strip():
                 if line and line[-1] == '\n':
                     chunk.append("\n")
-                pos.nextline()
+                pos = pos.nextline()
                 continue
             if pos.offset == 0:
                 line = dedent(line, current_indent)
@@ -686,9 +687,6 @@ class QqParser(object):
                     tag = m.group(1)
                     tag = self.alias2tag.get(tag, tag)
                     if tag in self.allowed_tags:
-
-                        rest_of_line = line[m.end(1):]
-                        spaces = re.match(r"\s*", rest_of_line).end(0)
                         newstart_pos = (current_indent +
                                         first_nonspace_idx(line, m.end(1)))
                         newstop_line, tag_contents_indent = (
@@ -706,8 +704,7 @@ class QqParser(object):
                         tags.append(
                             QqTag(tag,
                                   children=parsed_content))
-                        pos.line = newstop_line
-                        pos.offset = 0
+                        pos = self.position(newstop_line, 0)
                         continue
 
             tag_position, tag, ttype, after = self.locate_tag(pos, stop)
@@ -739,23 +736,22 @@ class QqParser(object):
                         parsed_items.append(QqTag("_item",
                                                   children=parsed_content))
                 tags.append(QqTag(tag, children=parsed_items))
-                pos = items[-1]["stop"].copy().nextchar()
+                pos = items[-1]["stop"].nextchar()
                 continue
 
             chunk.append(line)
-            pos.nextline()
+            pos = pos.nextline()
 
         self.append_chunk_and_clear(tags, chunk, stripeol=True)
         return tags
 
     def find_first_nonspace_character_before(self, start: Position,
                                              stop: Position):
-        pos = start.copy().prevchar()
-        print("pos=", pos)
-        print("stop=", stop)
-        while pos >= stop and re.match(r"\s", pos.getchar):
-            pos.prevchar()
-        return pos
+        line = "".join(reversed(start.get_start_of_line().clipped_line(
+            start)))
+        m = re.match(r"\s*", line)
+
+        return self.position(start.line, start.offset - m.end(0) - 1)
 
     def block_tag_stop_line_indent(self, start_line, stop_line):
         tag_indent = self._indents[start_line]
@@ -831,15 +827,14 @@ class QqParser(object):
                                   'stop': Position}
         """
         items = []
-        pos = start.copy()
+        pos = start
         while pos < stop and pos.getchar in ['[', '{']:
             type = pos.getchar
             end = self.match_bracket(pos, stop)
             items.append({'type': type,
-                          'start': pos.copy().nextchar(),
-                          'stop': end.copy()})
-            pos = end
-            pos.nextchar()
+                          'start': pos.nextchar(),
+                          'stop': end})
+            pos = end.nextchar()
         return items
 
     def match_bracket(self, start: Position, stop: Position) -> Position:
@@ -873,7 +868,7 @@ class QqParser(object):
                     if counter == 0:
                         return self.position(pos.line,
                                              pos.offset + m.start(0))
-            pos.nextline()
+            pos = pos.nextline()
         raise QqError("No closing bracket found: " 
                       "start: {}, stop: {}".format(start, stop))
 
@@ -891,7 +886,7 @@ class QqParser(object):
                   or None if EOL found)
         """
         if not merge_lines:
-            stop = min(stop, start.copy().nextline())
+            stop = min(stop, start.nextline())
             # looking only for current line
 
         pos = start.copy()
@@ -900,7 +895,7 @@ class QqParser(object):
         while pos < stop:
             tag_position, tag, type, after = self.locate_tag(pos, stop)
             if tag is None:
-                pos.nextline()
+                pos = pos.nextline()
                 ret = tag_position
                 continue
             if type == 'block':
