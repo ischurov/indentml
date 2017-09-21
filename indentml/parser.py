@@ -8,6 +8,7 @@ from functools import total_ordering
 import os
 from xml.etree.ElementTree import Element
 from itertools import islice, groupby
+from typing import Optional
 
 class QqError(Exception):
     pass
@@ -110,11 +111,14 @@ class QqTag(MutableSequence):
         return self.name
 
     def __getattr__(self, attr):
-        if attr[0] == "_":
-            return self.find(attr[1:])
+        if attr[-1] == "_":
+            return self.find_or_empty(attr[:-1])
         raise AttributeError("Attribute " + attr + " not found")
 
-    def find(self, key):
+    def __bool__(self):
+        return bool(self._children)
+
+    def find(self, key: str) -> Optional['QqTag']:
         """
         Returns direct children with the given key if it exists,
         otherwise returns None
@@ -124,13 +128,23 @@ class QqTag(MutableSequence):
         if key in self._children._directory:
             return self._children.find(key)
 
-    def find_all(self, key):
+    def find_or_empty(self, key: str) -> 'QqTag':
+        """
+        The same as find, but returns empty QqTag if finds nothing
+        :param key:
+        :return:
+        """
+        if key in self._children._directory:
+            return self._children.find(key)
+        return QqTag("_")
+
+    def find_all(self, key: str) -> 'QqTag':
         return QqTag("_", self._children.find_all(key), adopt=True)
 
     def __call__(self, key):
         return self.find_all(key)
 
-    def as_list(self):
+    def as_list(self) -> list:
         ret = [self.name]
         for child in self:
             if isinstance(child, QqTag):
@@ -202,7 +216,7 @@ class QqTag(MutableSequence):
         """
         return key in self._children._directory
 
-    def get(self, key, default_value=None):
+    def get(self, key: str, default_value: str=None) -> str:
         """
         Returns a value of a direct child with a given key.
         If it is does not exists or is not simple, returns default value (default: None)
@@ -633,7 +647,6 @@ class QqParser(object):
                 indent = min(get(indents, i - 1, basicindent),
                              get(indents, i + 1, basicindent))
             self._indents.extend([indent] * num)
-        print(self._lines, self._indents)
 
     def parse(self, lines):
         self.parse_init(lines)
@@ -778,8 +791,8 @@ class QqParser(object):
              if indent < contents_indent), (stop_line, tag_indent))
 
         if last_tag_indent > tag_indent:
-            raise QqError("Incorrect indent at line: "
-                                      + self._lines[last_tag_line])
+            raise QqError("Incorrect indent at line {}: ".format(
+                last_tag_line) + self._lines[last_tag_line])
         return last_tag_line, contents_indent
 
     def locate_tag(self, start: Position, stop: Position):

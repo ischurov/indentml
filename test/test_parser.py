@@ -47,11 +47,11 @@ class TestQqTagMethods(unittest.TestCase):
                 "this"
             ])])
 
-        self.assertEqual(q._b.value, 'hello')
-        self.assertEqual(q._c.value, 'world')
+        self.assertEqual(q.b_.value, 'hello')
+        self.assertEqual(q.c_.value, 'world')
         self.assertEqual([b.as_list() for b in q('b')], [['b', 'hello'],
                                                          ['b', 'this']])
-        self.assertEqual(q.find('--+-')._b.value, 'way')
+        self.assertEqual(q.find('--+-').b_.value, 'way')
         self.assertEqual(q[0].value, 'hello')
         self.assertEqual(q[1].value, 'world')
         self.assertEqual(q[3][0].value, 'way')
@@ -93,9 +93,9 @@ class TestQqTagMethods(unittest.TestCase):
                 "this"
             ])])
 
-        self.assertEqual(q._c.prev().value, 'hello')
-        self.assertEqual(q._b.next().value, 'world')
-        self.assertEqual(q._c.next().value, 'this')
+        self.assertEqual(q.c_.prev().value, 'hello')
+        self.assertEqual(q.b_.next().value, 'world')
+        self.assertEqual(q.c_.next().value, 'this')
 
 class TestQqParser(unittest.TestCase):
     def test_block_tags1(self):
@@ -108,8 +108,8 @@ class TestQqParser(unittest.TestCase):
         print(tree.as_list())
         self.assertEqual(tree[0], "Hello")
 
-        self.assertEqual(tree._tag.name, 'tag')
-        self.assertEqual(tree._tag.value, 'World')
+        self.assertEqual(tree.tag_.name, 'tag')
+        self.assertEqual(tree.tag_.value, 'World')
 
 
     def test_block_tags_nested(self):
@@ -128,12 +128,12 @@ Blank line before the end
         tree = parser.parse(doc)
         print(tree.as_list())
         self.assertEqual(tree[0], "Hello")
-        self.assertEqual(tree._tag[0], "World")
-        self.assertEqual(tree._tag._othertag._children, ["This\nIs"])
-        self.assertEqual(tree._tag[2], 'A test')
+        self.assertEqual(tree.tag_[0], "World")
+        self.assertEqual(tree.tag_.othertag_._children, ["This\nIs"])
+        self.assertEqual(tree.tag_[2], 'A test')
         self.assertEqual(tree[2], 'The end\n\nBlank line before the end')
-        self.assertEqual(tree._tag.parent, tree)
-        self.assertEqual(tree._tag._othertag.parent, tree._tag)
+        self.assertEqual(tree.tag_.parent, tree)
+        self.assertEqual(tree.tag_.othertag_.parent, tree.tag_)
 
     def test_block_additional_indent(self):
         doc = r"""Hello
@@ -144,7 +144,7 @@ Blank line before the end
 End"""
         parser = QqParser(allowed_tags={'tag'})
         tree = parser.parse(doc)
-        self.assertEqual(tree._tag._children,
+        self.assertEqual(tree.tag_._children,
                          ['First\n    Second\nThird'])
 
     def test_match_bracket(self):
@@ -224,7 +224,7 @@ End"""
         parser = QqParser(allowed_tags={'tag'})
         tree = parser.parse(doc)
         self.assertEqual(tree[0], 'Hello, ')
-        self.assertEqual(tree._tag.value, 'inline')
+        self.assertEqual(tree.tag_.value, 'inline')
         self.assertEqual(tree[2], ' tag!')
 
     def test_inline_tag2(self):
