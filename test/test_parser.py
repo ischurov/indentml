@@ -68,19 +68,19 @@ class TestQqTagMethods(unittest.TestCase):
         self.assertTrue(q._is_consistent())
         new_tag = QqTag({'qqq' : 'bbb'})
         q.append_child(new_tag)
-        self.assertEqual(new_tag.index, 4)
+        self.assertEqual(new_tag.idx, 4)
         del q[0]
-        self.assertEqual(new_tag.index, 3)
+        self.assertEqual(new_tag.idx, 3)
         self.assertTrue(q._is_consistent())
 
         other_tag = QqTag({'other': ['some', 'values']})
         q.insert(2, other_tag)
-        self.assertEqual(other_tag.index, 2)
-        self.assertEqual(new_tag.index, 4)
+        self.assertEqual(other_tag.idx, 2)
+        self.assertEqual(new_tag.idx, 4)
 
         third_tag = QqTag({'this': 'hi'})
         q[3] = third_tag
-        self.assertEqual(third_tag.index, 3)
+        self.assertEqual(third_tag.idx, 3)
         self.assertTrue(q._is_consistent())
 
     def test_qqtag_prev_next(self):
@@ -96,6 +96,39 @@ class TestQqTagMethods(unittest.TestCase):
         self.assertEqual(q.c_.prev().value, 'hello')
         self.assertEqual(q.b_.next().value, 'world')
         self.assertEqual(q.c_.next().value, 'this')
+
+    def test_qqtag_insert(self):
+        z = QqTag("z")
+        w = QqTag("w")
+        q = QqTag('a', [
+            "Hello",
+            "World",
+            z,
+            "This"])
+        self.assertEqual(q[2], z)
+        q.insert(0, w)
+        self.assertEqual(q[0], w)
+        self.assertEqual(q[3], z)
+        self.assertEqual(q[3].idx, 3)
+        self.assertTrue(q._is_consistent())
+
+    def test_qqtag_del(self):
+        z = QqTag("z")
+        w = QqTag("w")
+        q = QqTag('a', [
+            "Hello",
+            "World",
+            z,
+            "This",
+            w
+        ])
+        del q[2]
+        self.assertTrue(q._is_consistent())
+        self.assertEqual(q[3], w)
+        self.assertEqual(q[3].idx, 3)
+        self.assertEqual(q.as_list(),
+                         ["a", "Hello", "World", "This", ["w"]])
+
 
 class TestQqParser(unittest.TestCase):
     def test_block_tags1(self):
@@ -633,3 +666,34 @@ some \inline[square bracket \[ inside] okay
         self.assertEqual(tree.as_list(),
                          ['_root', '', ['tag', 'Hello'],
                           '\nStop.'])
+
+    def test_children_tags(self):
+        doc = dedent(r"""
+                \tag
+                    some content
+                    \tag
+                        other content
+                    more text here
+                    \tag
+                        some other tag
+                """)
+        parser = QqParser(allowed_tags={"tag"})
+        tree = parser.parse(doc)
+        childrens = (list(tree.tag_.children_tags()))
+        self.assertEqual(childrens[0].as_list(), ["tag", "other content"])
+        self.assertEqual(childrens[1].as_list(), ["tag",
+                                                  "some other tag"])
+
+    def test_blank_line_after_tag(self):
+        doc = dedent(r"""
+            \tag
+            
+                otherline
+                \tag
+                    othertag
+        """)
+        parser = QqParser(allowed_tags={"tag"})
+        tree = parser.parse(doc)
+        self.assertEqual(tree.as_list(),
+                         ['_root', '',
+                          ['tag', '\notherline', ['tag', 'othertag']]])

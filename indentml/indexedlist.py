@@ -1,11 +1,13 @@
 # (c) Ilya V. Schurov, 2016
 # Available under MIT license (see LICENSE file in the root folder)
 
-from collections import MutableSequence, Sequence, Mapping, defaultdict
+from collections import Sequence, Mapping, defaultdict
 from sortedcontainers import SortedList
+from typing import TypeVar, MutableSequence, List, Union
 
+T = TypeVar("T")
 
-class IndexedList(MutableSequence):
+class IndexedList(MutableSequence[T]):
     """
     IndexedList is a mixture of list and dictionary.
     Every element in IndexedList has a key and one can perform fast search by key.
@@ -24,7 +26,7 @@ class IndexedList(MutableSequence):
     def __init__(self, *iterable):
         if len(iterable) == 1 and isinstance(iterable[0], Sequence):
             iterable = iterable[0]
-        self._container = list(iterable)
+        self._container: List[T] = list(iterable)
         self._directory = defaultdict(SortedList)
         self.update_directory()
 

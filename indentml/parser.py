@@ -8,7 +8,7 @@ from functools import total_ordering
 import os
 from xml.etree.ElementTree import Element
 from itertools import islice, groupby
-from typing import Optional
+from typing import Optional, Iterator, Union
 
 class QqError(Exception):
     pass
@@ -32,7 +32,7 @@ class QqTag(MutableSequence):
     If QqTag has only one child, it is called *simple*. Then its `.value`
     is defined. (Useful for access to property-like subtags.)
     """
-    def __init__(self, name, children=None, parent=None, index=None,
+    def __init__(self, name, children=None, parent=None, idx=None,
                  adopt=False):
         if isinstance(name, dict) and len(name) == 1:
             self.__init__(*list(name.items())[0], parent=parent)
@@ -40,7 +40,7 @@ class QqTag(MutableSequence):
 
         self.name = name
         self.parent = parent
-        self.index = index
+        self.idx = idx
         # tag has to know its place in the list of parents children
         # to be able to navigate to previous / next siblings
 
@@ -48,6 +48,8 @@ class QqTag(MutableSequence):
         # tag is called 'adopter' if it does not register itself as
         # a parent of its children
         # TODO: write test for adoption
+
+        self._children: IndexedList[Union[str, 'QqTag']]
 
         if children is None:
             self._children = IndexedList()
@@ -64,7 +66,7 @@ class QqTag(MutableSequence):
             for i, child in enumerate(self):
                 if isinstance(child, QqTag):
                     child.parent = self
-                    child.index = i
+                    child.idx = i
 
     def __repr__(self):
         if self.parent is None:
@@ -127,6 +129,7 @@ class QqTag(MutableSequence):
         """
         if key in self._children._directory:
             return self._children.find(key)
+        return None
 
     def find_or_empty(self, key: str) -> 'QqTag':
         """
@@ -153,21 +156,21 @@ class QqTag(MutableSequence):
                 ret.append(child)
         return ret
 
-    def insert(self, index: int, child) -> None:
-        self._children.insert(index, child)
+    def insert(self, idx: int, child) -> None:
+        self._children.insert(idx, child)
         if not self.adopter and isinstance(child, QqTag):
-            # TODO: testme
             child.parent = self
-            child.index = index
-            for i in range(index+1, len(self)):
-                self._children[i].index += 1
+            child.idx = idx
+            for child in self._children[idx + 1:]:
+                if isinstance(child, QqTag):
+                    child.idx += 1
 
-    def __delitem__(self, index: int):
-        del self._children[index]
+    def __delitem__(self, idx: int):
+        del self._children[idx]
         if not self.adopter:
-            # TODO: testme
-            for i in range(index, len(self)):
-                self._children[i].index -= 1
+            for child in self._children[idx:]:
+                if isinstance(child, QqTag):
+                    child.idx -= 1
 
     def append_child(self, child):
         self.insert(len(self), child)
@@ -176,29 +179,43 @@ class QqTag(MutableSequence):
         if self.adopter:
             raise QqError("Adopter cannot be checked for consistency")
         for i, child in enumerate(self):
-            if child.parent != self or child.index != i:
+            if isinstance(child, QqTag) and (child.parent != self or
+                                                   child.idx != i):
                 return False
         return True
 
-    def append_line(self, line):
+    def append_line(self, line: str) -> None:
+        """
+        Appends line if it is not empty
+
+        :param line:
+        """
         if line:
             self._children.append(line)
 
-    def __getitem__(self, item):
-        return self._children[item]
+    def __getitem__(self, idx: int) -> Union[str, 'QqTag']:
+        return self._children[idx]
 
-    def __setitem__(self, index, child):
-        self._children[index] = child
+    def __setitem__(self, idx: int, child: 'QqTag'):
+        self._children[idx] = child
         if not self.adopter:
             #TODO testme
             child.parent = self
-            child.index = index
+            child.idx = idx
 
     def __iter__(self):
         return iter(self._children)
 
     def __len__(self):
         return len(self._children)
+
+    def children_tags(self) -> Iterator['QqTag']:
+        """
+        Returns iterator of all childrens that are QqTags
+
+        :return:
+        """
+        return (tag for tag in self if isinstance(tag, QqTag))
 
     @property
     def text_content(self):
@@ -260,15 +277,15 @@ class QqTag(MutableSequence):
         return self.ancestor_path()[-2]
 
     def next(self):
-        if (not self.parent or self.index is None or
-                    self.index == len(self.parent) - 1):
+        if (not self.parent or self.idx is None or
+                    self.idx == len(self.parent) - 1):
             return None
-        return self.parent[self.index + 1]
+        return self.parent[self.idx + 1]
 
     def prev(self):
-        if not self.parent or self.index is None or self.index == 0:
+        if not self.parent or self.idx is None or self.idx == 0:
             return None
-        return self.parent[self.index - 1]
+        return self.parent[self.idx - 1]
 
     def clear(self):
         self._children.clear()
@@ -635,7 +652,7 @@ class QqParser(object):
 
         self._indents = []
 
-        # we want to replace all Nones with min(previous, next)
+        # we want to replace all Nones with indent of next non-empty string
         # to do so, first, let us group all indents
 
         indents, nums = zip(*[(indent, sum(1 for _ in g)) for indent, g in
@@ -644,8 +661,7 @@ class QqParser(object):
 
         for i, (indent, num) in enumerate(zip(indents, nums)):
             if indent is None:
-                indent = min(get(indents, i - 1, basicindent),
-                             get(indents, i + 1, basicindent))
+                indent = get(indents, i + 1, basicindent)
             self._indents.extend([indent] * num)
 
     def parse(self, lines):
@@ -715,8 +731,7 @@ class QqParser(object):
                         self.append_chunk_and_clear(tags, chunk,
                                                     stripeol=True)
                         tags.append(
-                            QqTag(tag,
-                                  children=parsed_content))
+                            QqTag(tag, children=parsed_content))
                         pos = self.position(newstop_line, 0)
                         continue
 
@@ -746,8 +761,8 @@ class QqParser(object):
                     if item['type'] == '{':
                         parsed_items.extend(parsed_content)
                     else: # item['type'] == '['
-                        parsed_items.append(QqTag("_item",
-                                                  children=parsed_content))
+                        parsed_items.append(
+                            QqTag("_item", children=parsed_content))
                 tags.append(QqTag(tag, children=parsed_items))
                 pos = items[-1]["stop"].nextchar()
                 continue
