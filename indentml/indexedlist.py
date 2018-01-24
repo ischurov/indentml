@@ -1,9 +1,10 @@
 # (c) Ilya V. Schurov, 2016
 # Available under MIT license (see LICENSE file in the root folder)
 
-from collections import Sequence, Mapping, defaultdict
+from collections import Mapping, defaultdict
 from sortedcontainers import SortedList
-from typing import TypeVar, MutableSequence, List, Union
+from typing import (TypeVar, Sequence, MutableSequence,
+                    List, Union, overload)
 
 T = TypeVar("T")
 
@@ -23,7 +24,7 @@ class IndexedList(MutableSequence[T]):
     data structures
     """
 
-    def __init__(self, *iterable):
+    def __init__(self, *iterable) -> None:
         if len(iterable) == 1 and isinstance(iterable[0], Sequence):
             iterable = iterable[0]
         self._container: List[T] = list(iterable)
@@ -39,6 +40,12 @@ class IndexedList(MutableSequence[T]):
                     places[k] -= 1
 
         del self._container[i]
+
+    @overload
+    def __getitem__(self, idx: int) -> T: ...
+
+    @overload
+    def __getitem__(self, s: slice) -> Sequence[T]: ...
 
     def __getitem__(self, i):
         return self._container[i]

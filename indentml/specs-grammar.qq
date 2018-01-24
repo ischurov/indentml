@@ -1,0 +1,47 @@
+\tag tag
+    \text
+        \unique
+        \required
+    \follow tag
+    \tag inherit
+        \tag tag
+        \tag family
+        \tag group
+    \tag group
+    \tag follow
+    \tag family
+    \inherit \family properties
+    \tag text
+        \inherit \family properties
+    \tag inline
+        \tag args
+            \mandatory
+            \tag arg
+                \inherit \tag tag            
+\family properties
+    \members
+        \tag unique
+        \tag empty
+        \tag flag
+        \tag mandatory
+        \tag ignore
+    \flag
+\tag family
+    \tag members
+        \tag tag
+    \inherit \tag tag
+\tag group
+    \tag family
+    \tag tag
+    \tag group
+    \text
+        \unique
+        \required
+\tag root
+    \inherit \tag tag
+\root
+    \follow tag
+    \follow family
+    \follow group
+    \text
+        \ignore

@@ -1,14 +1,14 @@
 # (c) Ilya V. Schurov, 2016 — 2017
 # Available under MIT license (see LICENSE file in the root folder)
 
-from collections import Sequence, MutableSequence, namedtuple
+from collections import MutableSequence, namedtuple
 from indentml.indexedlist import IndexedList
 import re
 from functools import total_ordering
 import os
 from xml.etree.ElementTree import Element
 from itertools import islice, groupby
-from typing import Optional, Iterator, Union
+from typing import Optional, Iterator, Union, overload, Sequence, List
 
 class QqError(Exception):
     pass
@@ -33,7 +33,7 @@ class QqTag(MutableSequence):
     is defined. (Useful for access to property-like subtags.)
     """
     def __init__(self, name, children=None, parent=None, idx=None,
-                 adopt=False):
+                 adopt=False) -> None:
         if isinstance(name, dict) and len(name) == 1:
             self.__init__(*list(name.items())[0], parent=parent)
             return
@@ -180,7 +180,7 @@ class QqTag(MutableSequence):
             raise QqError("Adopter cannot be checked for consistency")
         for i, child in enumerate(self):
             if isinstance(child, QqTag) and (child.parent != self or
-                                                   child.idx != i):
+                                                     child.idx != i):
                 return False
         return True
 
@@ -193,13 +193,19 @@ class QqTag(MutableSequence):
         if line:
             self._children.append(line)
 
-    def __getitem__(self, idx: int) -> Union[str, 'QqTag']:
+    @overload
+    def __getitem__(self, idx: int) -> 'QqTag': ...
+
+    @overload
+    def __getitem__(self, s: slice) -> Sequence['QqTag']: ...
+
+    def __getitem__(self, idx):
         return self._children[idx]
 
     def __setitem__(self, idx: int, child: 'QqTag'):
         self._children[idx] = child
         if not self.adopter:
-            #TODO testme
+            # TODO testme
             child.parent = self
             child.idx = idx
 
@@ -236,9 +242,11 @@ class QqTag(MutableSequence):
     def get(self, key: str, default_value: str=None) -> str:
         """
         Returns a value of a direct child with a given key.
-        If it is does not exists or is not simple, returns default value (default: None)
+        If it is does not exists or is not simple,
+        returns default value (default: None)
         :param key: key
-        :param default_value: what to return if there is no such key or the corresponding child is ot simple
+        :param default_value: what to return if there is no
+               such key or the corresponding child is ot simple
         :return: the value of a child
         """
         tag = self.find(key)
@@ -278,7 +286,7 @@ class QqTag(MutableSequence):
 
     def next(self):
         if (not self.parent or self.idx is None or
-                    self.idx == len(self.parent) - 1):
+                self.idx == len(self.parent) - 1):
             return None
         return self.parent[self.idx + 1]
 
@@ -323,7 +331,7 @@ class QqTag(MutableSequence):
                 elif strings == 'none':
                     values.append(None)
                 # if strings == 'skip': pass
-            else: #  QqTag assumed
+            else:  # QqTag assumed
                 if child.is_simple:
                     values.append(child.value)
                     continue
@@ -370,7 +378,6 @@ class QqTag(MutableSequence):
             return self[0]
         raise QqError("Can't unitemize tag " + str(self))
 
-
     def process_include_tags(self, parser, includedir, follow=True):
         """
         Recursively processes include tags (as defined by parser.include)
@@ -391,13 +398,13 @@ class QqTag(MutableSequence):
         for child in self:
             if isinstance(child, str):
                 newtree.append_child(child)
-            else: # child is QqTag
+            else:  # child is QqTag
                 if child.name == parser.include:
                     include_path = child.value
                     # FROM: https://www.guyrutenberg.com/2013/12/06/
                     # preventing-directory-traversal-in-python/
-                    include_path = os.path.normpath('/' +
-                                               include_path).lstrip('/')
+                    include_path = os.path.normpath(
+                        '/' + include_path).lstrip('/')
                     # END FROM
 
                     include_parsed = parser.parse_file(
@@ -426,6 +433,41 @@ class QqTag(MutableSequence):
             append_text(tree, "".join(chunk))
         return tree
 
+    def escape(self, line: str, tbcharacter="\\") -> str:
+        for char in [tbcharacter, '[', '{', '}', ']']:
+            line = line.replace(char, tbcharacter + char)
+        return line
+
+    def serialize(self, tbcharacter="\\", tabs=4,
+                  escape_brackets=True) -> List[str]:
+        lines = []
+        if self.name != "_root":
+            lines.append(tbcharacter + self.name + "\n")
+            prefix = " " * tabs
+        else:
+            prefix = ""
+        for i, child in enumerate(self):
+            if isinstance(child, str):
+                if escape_brackets:
+                    line = self.escape(child, tbcharacter)
+                else:
+                    line = child.replace(tbcharacter,
+                                         tbcharacter * 2)
+                if i == 0 and line.startswith(" "):
+                    line = tbcharacter + line
+                if i < len(self) - 1 and isinstance(self[i + 1], QqTag):
+                    postfix = "\n"
+                else:
+                    postfix = ""
+                lines.append(prefix + line + postfix)
+            else:
+                lines.extend(prefix + line for line in
+                              child.serialize(tbcharacter, tabs))
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] = lines[-1] + "\n"
+        return lines
+
+
 def append_text(tree, text):
     children = tree.getchildren()
     if children:
@@ -440,10 +482,12 @@ def append_text(tree, text):
             tree.text += text
     return tree
 
+
 def dedent(line, indent):
     if line[:indent] == " " * indent:
         return line[indent:]
     raise QqError("Can't dedent line {} by {}".format(repr(line), indent))
+
 
 def get_indent(s, empty_to_none=False):
         if not s.strip() and empty_to_none:
@@ -455,6 +499,7 @@ def get_indent(s, empty_to_none=False):
                           "of line! Line: " + s)
         m = re.match(r' *', s)
         return len(m.group(0))
+
 
 @total_ordering
 class Position(object):
@@ -517,7 +562,6 @@ class Position(object):
         """
         Returns line clipped before stop
 
-        :param line_idx:
         :param stop:
         :return:
         """
@@ -542,16 +586,19 @@ class Position(object):
     def get_start_of_line(self):
         return Position(self.line, 0, self.lines)
 
+
 def get(s, i, default=None):
     if i < 0 or i >= len(s):
         return default
     return s[i]
+
 
 def first_nonspace_idx(line, start=0, stop=None):
     if stop is None:
         stop = len(line)
     m = re.match(r"\s*", line[start:stop])
     return start + m.end(0)
+
 
 class QqParser(object):
     """
@@ -582,12 +629,19 @@ class QqParser(object):
         self._lines = None
         self._indents = None
         self.blocktag_rc = re.compile(self.command_regex +
-                              self.tag_regex +
-                              r"(?= |{}|$)".format(self.command_regex))
+                                      self.tag_regex +
+                                      r"(?= |{}|$)".format(
+                                          self.command_regex))
         self.anytag_rc = re.compile(self.command_regex +
                                     self.tag_regex +
                                     r"(?= |{}|{{|\[|$)".format(
                                         self.command_regex))
+
+    def is_allowed_tag(self, tag: str, inline=False):
+        if inline:
+            return tag in self.allowed_inline_tags
+        else:
+            return tag in self.allowed_tags
 
     def escape_line(self, s):
         """
@@ -630,9 +684,9 @@ class QqParser(object):
     def position(self, line, offset):
         return Position(line=line, offset=offset, lines=self._lines)
 
-    def parse_init(self, text):
+    def parse_init(self, text: Union[str, Sequence[str]]):
         """
-        :param lines:
+        :param text:
         :return:
         """
         if isinstance(text, str):
@@ -647,7 +701,7 @@ class QqParser(object):
         # basic indent is indent of first non-empty line, if any
         basicindent = next(
             (get_indent(line) for line in lines
-            if line.strip()), 0
+             if line.strip()), 0
         )
 
         self._indents = []
@@ -656,15 +710,15 @@ class QqParser(object):
         # to do so, first, let us group all indents
 
         indents, nums = zip(*[(indent, sum(1 for _ in g)) for indent, g in
-                           groupby(get_indent(line, empty_to_none=True)
-                                   for line in lines)])
+                              groupby(get_indent(line, empty_to_none=True)
+                                      for line in lines)])
 
         for i, (indent, num) in enumerate(zip(indents, nums)):
             if indent is None:
                 indent = get(indents, i + 1, basicindent)
             self._indents.extend([indent] * num)
 
-    def parse(self, lines):
+    def parse(self, lines: Union[str, Sequence[str]]):
         self.parse_init(lines)
         start = self.position(0, 0)
         stop = self.position(None, 0)
@@ -715,7 +769,7 @@ class QqParser(object):
                 if m:
                     tag = m.group(1)
                     tag = self.alias2tag.get(tag, tag)
-                    if tag in self.allowed_tags:
+                    if self.is_allowed_tag(tag):
                         newstart_pos = (current_indent +
                                         first_nonspace_idx(line, m.end(1)))
                         newstop_line, tag_contents_indent = (
@@ -760,7 +814,7 @@ class QqParser(object):
                         merge_lines=True)
                     if item['type'] == '{':
                         parsed_items.extend(parsed_content)
-                    else: # item['type'] == '['
+                    else:  # item['type'] == '['
                         parsed_items.append(
                             QqTag("_item", children=parsed_content))
                 tags.append(QqTag(tag, children=parsed_items))
@@ -775,6 +829,7 @@ class QqParser(object):
 
     def find_first_nonspace_character_before(self, start: Position,
                                              stop: Position):
+        # FIXME: stop is not used: why?
         line = "".join(reversed(start.get_start_of_line().clipped_line(
             start)))
         m = re.match(r"\s*", line)
@@ -837,10 +892,10 @@ class QqParser(object):
                 first_nonspace_idx(line, m.end(1)))
             next_char = get(line, m.end(1))
             if next_char not in ['{', '[']:
-                if tag in self.allowed_tags:
+                if self.is_allowed_tag(tag):
                     return tag_position, tag, 'block', after
             else:
-                if tag in self.allowed_inline_tags:
+                if self.is_allowed_tag(tag, inline=True):
                     return tag_position, tag, 'inline', after
         return min(start.get_end_of_line(), stop), None, None, None
 
@@ -857,9 +912,9 @@ class QqParser(object):
         items = []
         pos = start
         while pos < stop and pos.getchar in ['[', '{']:
-            type = pos.getchar
+            type_ = pos.getchar
             end = self.match_bracket(pos, stop)
-            items.append({'type': type,
+            items.append({'type': type_,
                           'start': pos.nextchar(),
                           'stop': end})
             pos = end.nextchar()
@@ -901,7 +956,7 @@ class QqParser(object):
                       "start: {}, stop: {}".format(start, stop))
 
     def scan_after_attribute_tag(self, start: Position,
-                                 stop: Position, merge_lines = False):
+                                 stop: Position, merge_lines=False):
         """
         scans the rest of line / fragment after block tag found inline
         looking for another block tag
@@ -909,6 +964,7 @@ class QqParser(object):
 
         :param start: first character to scan
         :param stop: where to stop
+        :param merge_lines: look for several lines
         :return: (Position of the first character of next block tag or EOL,
                   Position of the first non-space character after block tag
                   or None if EOL found)
@@ -921,12 +977,12 @@ class QqParser(object):
         ret = start.copy()
 
         while pos < stop:
-            tag_position, tag, type, after = self.locate_tag(pos, stop)
+            tag_position, tag, type_, after = self.locate_tag(pos, stop)
             if tag is None:
                 pos = pos.nextline()
                 ret = tag_position
                 continue
-            if type == 'block':
+            if type_ == 'block':
                 return tag_position
             else:
                 contents = self.inline_tag_contents(after, stop)
