@@ -3,19 +3,20 @@
 
 from collections import Sequence, Mapping, defaultdict
 from sortedcontainers import SortedList
-from typing import TypeVar, MutableSequence, List, Union
+from typing import TypeVar, MutableSequence, List
 
 T = TypeVar("T")
+
 
 class IndexedList(MutableSequence[T]):
     """
     IndexedList is a mixture of list and dictionary.
     Every element in IndexedList has a key and one can perform fast search by key.
 
-    The key is calculated in the following way:
+    The key is calculated in the following way depending on the element's type:
 
     - ``str``: key is ``str`` (it is a special case)
-    - ``list``: key is a first element of the list or ``None`` if there the list is empty
+    - ``list``: key is the first element of the list or ``None`` if the list is empty
     - ``dictionary``: if it has only one record, its key is a key, otherwise ``Sequence.Mapping`` is a key
     - any other object: we'll look for .qqkey() method, and fallback to ``str`` if fail
 

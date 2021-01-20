@@ -1,16 +1,10 @@
 # (c) Ilya V. Schurov, 2016
 # Available under MIT license (see LICENSE file in the root folder)
 
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                '..', 'indentml'))
-
-from formatter import DummyXMLFormatter, parse_and_format
+import unittest
 from textwrap import dedent
 
-import unittest
+from indentml.formatter import DummyXMLFormatter, parse_and_format
 
 
 class TestDummyXMLFormatter(unittest.TestCase):

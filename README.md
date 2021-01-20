@@ -7,7 +7,7 @@
 
     pip install indentml
    
-Currently only Python 3 supported.
+Currently only Python 3 is supported.
 
 ### Code sample
 
@@ -55,7 +55,7 @@ Currently only Python 3 supported.
 #### Special characters
 The following characters have special meaning in **indetml**:
 
-1. **Tag beginning character.** This character is used to mark the beginning of any tag. By default, it is backslash `\` 
+1. **Tag beginning character.** This character is used to mark the beginning of any tag. By default, it is a backslash `\` 
 (like in LaTeX), but can be configured to any other character. If you need to enter this character literally, you have 
 to escape it with the same character (like `\\`). You can also escape other special characters listed below with *tag beginning character*.
 2. Opening and closing brackets: `{`, `}`, and `[`, `]`, used to indicate the content that belongs to *inline tags*, see below.
@@ -97,7 +97,7 @@ is valid markup: the contents of tag `tag` will be `with some {brackets} inside`
 
 #### Allowed tags
 Only those tags are processed that are explicitly *allowed*. There are two sets defined: allowed block tags and allowed inline tags.
-The sequences that look like tags but are not in the appropriate set is considered as simple text.
+The sequences that look like tags but are not in the appropriate set are considered as simple text.
 
 #### Indents and whitespaces
 Indent of the first line after the block tag is a *base indent* of this tag. All lines that belong to tag will be stripped 
