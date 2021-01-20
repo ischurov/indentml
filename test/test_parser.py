@@ -1,19 +1,12 @@
 # (c) Ilya V. Schurov, 2016
 # Available under MIT license (see LICENSE file in the root folder)
 
-
-import sys
-import os
-import xml.etree.ElementTree as et
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                '..', 'indentml'))
-
-from parser import QqTag, QqParser
-from textwrap import dedent
-# from qqmbr.indexedlist import IndexedList
-
 import unittest
+from textwrap import dedent
+
+from indentml.parser import QqTag, QqParser
+
+
 class TestQqTagMethods(unittest.TestCase):
     def test_create_qqtag(self):
         q = QqTag({'a': 'b'})
@@ -66,7 +59,7 @@ class TestQqTagMethods(unittest.TestCase):
                 "this"
             ])])
         self.assertTrue(q._is_consistent())
-        new_tag = QqTag({'qqq' : 'bbb'})
+        new_tag = QqTag({'qqq': 'bbb'})
         q.append_child(new_tag)
         self.assertEqual(new_tag.idx, 4)
         del q[0]
@@ -143,7 +136,6 @@ class TestQqParser(unittest.TestCase):
 
         self.assertEqual(tree.tag_.name, 'tag')
         self.assertEqual(tree.tag_.value, 'World')
-
 
     def test_block_tags_nested(self):
         doc = r"""Hello
@@ -629,7 +621,6 @@ some \inline[square bracket \[ inside] okay
                                     ["inlinetag", ["_item", "Hello"],
                                      ["_item", "world"]]]])
 
-
     def test_end_with_empty_line(self):
         doc = dedent(r"""
         \tag
@@ -679,10 +670,9 @@ some \inline[square bracket \[ inside] okay
                 """)
         parser = QqParser(allowed_tags={"tag"})
         tree = parser.parse(doc)
-        childrens = (list(tree.tag_.children_tags()))
-        self.assertEqual(childrens[0].as_list(), ["tag", "other content"])
-        self.assertEqual(childrens[1].as_list(), ["tag",
-                                                  "some other tag"])
+        children = (list(tree.tag_.children_tags()))
+        self.assertEqual(children[0].as_list(), ["tag", "other content"])
+        self.assertEqual(children[1].as_list(), ["tag", "some other tag"])
 
     def test_blank_line_after_tag(self):
         doc = dedent(r"""

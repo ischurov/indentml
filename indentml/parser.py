@@ -1,7 +1,7 @@
 # (c) Ilya V. Schurov, 2016 — 2017
 # Available under MIT license (see LICENSE file in the root folder)
 
-from collections import Sequence, MutableSequence, namedtuple
+from collections import Sequence, MutableSequence
 from indentml.indexedlist import IndexedList
 import re
 from functools import total_ordering
@@ -9,6 +9,7 @@ import os
 from xml.etree.ElementTree import Element
 from itertools import islice, groupby
 from typing import Optional, Iterator, Union
+
 
 class QqError(Exception):
     pass
@@ -19,15 +20,15 @@ class QqTag(MutableSequence):
     QqTag is essentially an IndexedList with name attached. It behaves
     mostly like eTree Element.
 
-    It provides eTree and BeautifulSoup-style navigation over its child:
+    It provides eTree and BeautifulSoup-style navigation over its children:
     - ``tag.find('subtag')`` returns first occurrence of a child with name
       ``subtag``. (Note that in contrast with BeautifulSoup, this is not
-      recursive: it searches only through tag's direct childrens.)
+      recursive: it searches only through tag's direct children.)
     - ``tag._subtag`` is a shortcut for ``tag.find('subtag')``
       (works if ``subtag`` is valid identifier)
     - ``tag.find_all('subtag')`` returns all occurrences of tag with
       name 'subtag'
-    - ``tag('subtag')`` is shortcut for ``tag.find_all('subtag')``
+    - ``tag('subtag')`` is a shortcut for ``tag.find_all('subtag')``
 
     If QqTag has only one child, it is called *simple*. Then its `.value`
     is defined. (Useful for access to property-like subtags.)
@@ -370,7 +371,6 @@ class QqTag(MutableSequence):
             return self[0]
         raise QqError("Can't unitemize tag " + str(self))
 
-
     def process_include_tags(self, parser, includedir, follow=True):
         """
         Recursively processes include tags (as defined by parser.include)
@@ -426,6 +426,7 @@ class QqTag(MutableSequence):
             append_text(tree, "".join(chunk))
         return tree
 
+
 def append_text(tree, text):
     children = tree.getchildren()
     if children:
@@ -440,10 +441,12 @@ def append_text(tree, text):
             tree.text += text
     return tree
 
+
 def dedent(line, indent):
     if line[:indent] == " " * indent:
         return line[indent:]
     raise QqError("Can't dedent line {} by {}".format(repr(line), indent))
+
 
 def get_indent(s, empty_to_none=False):
         if not s.strip() and empty_to_none:
@@ -455,6 +458,7 @@ def get_indent(s, empty_to_none=False):
                           "of line! Line: " + s)
         m = re.match(r' *', s)
         return len(m.group(0))
+
 
 @total_ordering
 class Position(object):
@@ -542,16 +546,19 @@ class Position(object):
     def get_start_of_line(self):
         return Position(self.line, 0, self.lines)
 
+
 def get(s, i, default=None):
     if i < 0 or i >= len(s):
         return default
     return s[i]
+
 
 def first_nonspace_idx(line, start=0, stop=None):
     if stop is None:
         stop = len(line)
     m = re.match(r"\s*", line[start:stop])
     return start + m.end(0)
+
 
 class QqParser(object):
     """
