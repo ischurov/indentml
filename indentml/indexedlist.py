@@ -14,7 +14,7 @@ class IndexedList(MutableSequence[T]):
     IndexedList is a mixture of list and dictionary.
     Every element in IndexedList has a key and one can perform fast search by key.
 
-    The key is calculated in the following way:
+    The key is calculated in the following way depending on the element's type:
 
     - ``str``: key is ``str`` (this is a special case)
     - ``list``: key is a first element of the list or ``None`` if the list is empty

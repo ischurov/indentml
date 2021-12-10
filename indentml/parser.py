@@ -22,15 +22,15 @@ class QqTag(MutableSequence):
     QqTag is essentially an IndexedList with name attached. It behaves
     mostly like eTree Element.
 
-    It provides eTree and BeautifulSoup-style navigation over its child:
+    It provides eTree and BeautifulSoup-style navigation over its children:
     - ``tag.find('subtag')`` returns first occurrence of a child with name
       ``subtag``. (Note that in contrast with BeautifulSoup, this is not
-      recursive: it searches only through tag's direct childrens.)
+      recursive: it searches only through tag's direct children.)
     - ``tag._subtag`` is a shortcut for ``tag.find('subtag')``
       (works if ``subtag`` is valid identifier)
     - ``tag.find_all('subtag')`` returns all occurrences of tag with
       name 'subtag'
-    - ``tag('subtag')`` is shortcut for ``tag.find_all('subtag')``
+    - ``tag('subtag')`` is a shortcut for ``tag.find_all('subtag')``
 
     If QqTag has only one child, it is called *simple*. Then its `.value`
     is defined. (Useful for access to property-like subtags.)

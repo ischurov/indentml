@@ -1,6 +1,8 @@
-from indentml.parser import QqTag, QqParser
 import inspect
 import re
+
+from indentml.parser import QqTag, QqParser
+
 
 class QqFormatter(object):
     """
@@ -61,15 +63,17 @@ class QqFormatter(object):
     def do_format(self):
         return self.format(self.root)
 
+
 class DummyXMLFormatter(QqFormatter):
     def handle__fallback(self, tag):
         return "<{name}>{content}</{name}>".format(
             name=tag.name, content=self.format(tag)
         )
 
+
 def parse_and_format(doc: str,
                      formatter_factory,
-                     allowed_tags = None) -> str:
+                     allowed_tags=None) -> str:
     formatter = formatter_factory()
     if allowed_tags is None:
         allowed_tags = formatter.uses_tags()
