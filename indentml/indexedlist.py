@@ -1,9 +1,11 @@
 # (c) Ilya V. Schurov, 2016
 # Available under MIT license (see LICENSE file in the root folder)
 
-from collections import Sequence, Mapping, defaultdict
+from collections.abc import Mapping
+from collections import defaultdict
 from sortedcontainers import SortedList
-from typing import TypeVar, MutableSequence, List, Union
+from typing import (TypeVar, Sequence, MutableSequence,
+                    List, Union, overload)
 
 T = TypeVar("T")
 
@@ -14,8 +16,8 @@ class IndexedList(MutableSequence[T]):
 
     The key is calculated in the following way:
 
-    - ``str``: key is ``str`` (it is a special case)
-    - ``list``: key is a first element of the list or ``None`` if there the list is empty
+    - ``str``: key is ``str`` (this is a special case)
+    - ``list``: key is a first element of the list or ``None`` if the list is empty
     - ``dictionary``: if it has only one record, its key is a key, otherwise ``Sequence.Mapping`` is a key
     - any other object: we'll look for .qqkey() method, and fallback to ``str`` if fail
 
@@ -23,7 +25,7 @@ class IndexedList(MutableSequence[T]):
     data structures
     """
 
-    def __init__(self, *iterable):
+    def __init__(self, *iterable) -> None:
         if len(iterable) == 1 and isinstance(iterable[0], Sequence):
             iterable = iterable[0]
         self._container: List[T] = list(iterable)
@@ -36,9 +38,17 @@ class IndexedList(MutableSequence[T]):
         for key, places in self._directory.items():
             for k, index in enumerate(places):
                 if index >= i:
-                    places[k] -= 1
+                    value = places[k]
+                    del places[k]
+                    places.add(value - 1)
 
         del self._container[i]
+
+    @overload
+    def __getitem__(self, idx: int) -> T: ...
+
+    @overload
+    def __getitem__(self, s: slice) -> Sequence[T]: ...
 
     def __getitem__(self, i):
         return self._container[i]
@@ -58,7 +68,9 @@ class IndexedList(MutableSequence[T]):
         for key, places in self._directory.items():
             for k in range(len(places)-1, -1, -1):
                 if places[k] >= i:
-                    places[k] += 1
+                    value = places[k]
+                    del places[k]
+                    places.add(value + 1)
                 else:
                     break
         self._container.insert(i, x)

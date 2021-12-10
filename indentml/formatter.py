@@ -34,7 +34,6 @@ class QqFormatter(object):
     def format(self, content) -> str:
         """
         :param content: could be QqTag or any iterable of QqTags
-        :param blanks_to_pars: use blanks_to_pars (True or False)
         :return: str: text of tag
         """
         if content is None:
